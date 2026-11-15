@@ -1,6 +1,6 @@
 # Changelog
 
-## [v0.5.0]
+## [v0.6.0]
 
 - Light meter reworked: orbit camera renders a raw HDR frame, exposure (EV) applied before scoring, preview shows the post-exposure frame.
 - Natural daylight now counts: EFT's own ambient pass is attached to the light camera (previously only lamps lit the frame).

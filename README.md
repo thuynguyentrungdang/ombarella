@@ -32,6 +32,6 @@ See [docs/PERF_AUDIT.md](docs/PERF_AUDIT.md). New option *On-demand sampling*: l
 
 ## Cutting a release
 1. Bump `ModVersion` in `Directory.Build.props`, add a `## [vX.Y.Z]` entry to `CHANGELOG.md`, commit.
-2. `dotnet build ombarella.sln -c Release` locally (needs the game install) -> `bin/Release/Ombarella.zip`, `Ombarella.Fika/bin/Release/Ombarella.Fika.zip`.
+2. `scripts/Build-Release.ps1` locally (needs the game install) -> `bin/Release/Ombarella.zip`, `bin/Release/Ombarella.Fika.zip`.
 3. `git tag vX.Y.Z && git push origin vX.Y.Z` -> CI runs tests, checks tag vs version, creates a DRAFT release from the changelog.
 4. Attach both zips to the draft, publish.

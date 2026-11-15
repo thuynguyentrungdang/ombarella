@@ -3,8 +3,8 @@ name: Release
 # Ombarella.dll and Ombarella.Fika.dll compile against EFT/BepInEx/SPT assemblies that only exist on a
 # local game install and are not redistributable, so GitHub-hosted runners can NOT build the zips.
 # CI validates the pure-logic tests, checks tag == ModVersion, and creates a DRAFT release with notes
-# from CHANGELOG.md. Build zips locally (`dotnet build ombarella.sln -c Release` ->
-# bin/Release/Ombarella.zip and Ombarella.Fika/bin/Release/Ombarella.Fika.zip), attach to the draft, publish.
+# from CHANGELOG.md. Build zips locally (`scripts/Build-Release.ps1` ->
+# bin/Release/Ombarella.zip and bin/Release/Ombarella.Fika.zip), attach to the draft, publish.
 on:
   push:
     tags:

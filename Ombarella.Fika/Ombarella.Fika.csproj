@@ -1,0 +1,67 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <AssemblyName>ombarella.fika</AssemblyName>
+    <RootNamespace>ombarella.FikaSupport</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateModVersion>true</GenerateModVersion>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <Deterministic>true</Deterministic>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  </PropertyGroup>
+
+  <!-- Same game build as core. Override: -p:GameDir=...\ ; Fika.Core override: -p:FikaDll=... -->
+  <PropertyGroup>
+    <GameDir Condition="'$(GameDir)' == '' and '$(SptInstallPath)' != ''">$(SptInstallPath)\</GameDir>
+    <GameDir Condition="'$(GameDir)' == '' and '$(SPT_INSTALL_PATH)' != ''">$(SPT_INSTALL_PATH)\</GameDir>
+    <GameDir Condition="'$(GameDir)' == ''">F:\SPT_4.1\</GameDir>
+    <ManagedDir>$(GameDir)EscapeFromTarkov_Data\Managed\</ManagedDir>
+    <CoreDir>$(GameDir)BepInEx\core\</CoreDir>
+    <FikaDll Condition="'$(FikaDll)' == ''">$(GameDir)BepInEx\plugins\Fika\Fika.Core.dll</FikaDll>
+    <DevGameDir Condition="'$(DevGameDir)' == ''">F:\SPT_4.1 - Dev\</DevGameDir>
+    <StagingRoot Condition="'$(StagingRoot)' == ''">D:\Staging Area\Ombarella\</StagingRoot>
+  </PropertyGroup>
+
+  <Target Name="ValidateGameDir" BeforeTargets="ResolveReferences">
+    <Error Condition="!Exists('$(ManagedDir)Assembly-CSharp.dll')" Text="Assembly-CSharp.dll not found under $(GameDir). Set -p:GameDir=... or SPT_INSTALL_PATH." />
+  </Target>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ombarella.csproj"><Private>false</Private></ProjectReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="BepInEx"><HintPath>$(CoreDir)BepInEx.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Assembly-CSharp"><HintPath>$(ManagedDir)Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Fika.Core"><HintPath>$(FikaDll)</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(ManagedDir)UnityEngine.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(ManagedDir)UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+  <!-- Debug: DLL+PDB into dev client install (own folder, next to core) -->
+  <Target Name="DeployDebug" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug' and '$(SkipDeploy)' != 'true'">
+    <PropertyGroup><_PluginDir>$(DevGameDir)BepInEx\plugins\Ombarella\</_PluginDir></PropertyGroup>
+    <MakeDir Directories="$(_PluginDir)" />
+    <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll;$(OutputPath)$(AssemblyName).pdb" DestinationFolder="$(_PluginDir)" ContinueOnError="true" />
+    <Message Importance="high" Text="[Debug] deployed -> $(_PluginDir)" />
+  </Target>
+
+  <!-- Release: bin\Release\Ombarella.Fika.zip (game-root layout; same folder as core). Staging skipped on CI. -->
+  <Target Name="PackageRelease" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+    <PropertyGroup>
+      <_PkgRoot>$(RepoRoot)bin\Release\_pkgfika\</_PkgRoot>
+      <_PkgDir>$(_PkgRoot)BepInEx\plugins\Ombarella\</_PkgDir>
+      <_ZipFile>$(RepoRoot)bin\Release\Ombarella.Fika.zip</_ZipFile>
+    </PropertyGroup>
+    <RemoveDir Directories="$(_PkgRoot)" />
+    <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll" DestinationFolder="$(_PkgDir)" />
+    <Delete Files="$(_ZipFile)" Condition="Exists('$(_ZipFile)')" />
+    <ZipDirectory SourceDirectory="$(_PkgRoot)" DestinationFile="$(_ZipFile)" />
+    <Message Importance="high" Text="[Release] packaged -> $(_ZipFile)" />
+    <ItemGroup><_Staged Include="$(_PkgRoot)**\*" /></ItemGroup>
+    <Copy Condition="'$(CI)' != 'true'" SourceFiles="@(_Staged)" DestinationFiles="@(_Staged->'$(StagingRoot)%(RecursiveDir)%(Filename)%(Extension)')" ContinueOnError="true" />
+    <RemoveDir Directories="$(_PkgRoot)" />
+  </Target>
+</Project>

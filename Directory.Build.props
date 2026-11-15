@@ -1,0 +1,22 @@
+<Project>
+  <!-- SINGLE source of mod version; Plugin reads generated ModVersion.Value -->
+  <PropertyGroup>
+    <ModVersion>0.5.0</ModVersion>
+    <Version>$(ModVersion)</Version>
+    <RepoRoot>$(MSBuildThisFileDirectory)</RepoRoot>
+  </PropertyGroup>
+  <Target Name="GenerateModVersionFile" BeforeTargets="CoreCompile" Condition="'$(GenerateModVersion)' == 'true'">
+    <PropertyGroup>
+      <_ModVersionFile>$(IntermediateOutputPath)ModVersion.g.cs</_ModVersionFile>
+    </PropertyGroup>
+    <ItemGroup>
+      <_ModVersionLine Include="// &lt;auto-generated/&gt;" />
+      <_ModVersionLine Include="namespace $(RootNamespace) { internal static class ModVersion { public const string Value = &quot;$(ModVersion)&quot;%3B } }" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(_ModVersionFile)" Lines="@(_ModVersionLine)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <Compile Include="$(_ModVersionFile)" />
+      <FileWrites Include="$(_ModVersionFile)" />
+    </ItemGroup>
+  </Target>
+</Project>

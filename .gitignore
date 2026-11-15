@@ -12,3 +12,9 @@ fika/
 release/*.zip
 release/*.7z
 release/4.0/
+
+.idea/
+.vscode/
+TestResults/
+release/
+*.zip

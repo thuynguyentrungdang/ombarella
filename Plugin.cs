@@ -1,6 +1,7 @@
 ﻿using BepInEx;
 using BepInEx.Logging;
 using EFT;
+using ombarella.Core;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -52,6 +53,7 @@ namespace ombarella
             _hud.enabled = false;
             _hud.GetValue = () => Meters.LocalRaw;
             _hud.GetDebug = DebugString;
+            _hud.GetVerbose = VerboseString;
             _hud.GetTexture = () => _meter.Texture;
 
             LoadPatches();
@@ -177,7 +179,7 @@ namespace ombarella
 
         void UpdateHud()
         {
-            bool want = OmbarellaConfig.MeterViz.Value || OmbarellaConfig.ShowRenderTexturePreview.Value;
+            bool want = OmbarellaConfig.MeterViz.Value || OmbarellaConfig.ShowRenderTexturePreview.Value || OmbarellaConfig.VerboseDebug.Value;
             if (_hud.enabled != want) _hud.enabled = want;
         }
 
@@ -232,6 +234,40 @@ namespace ombarella
             Log.LogInfo(string.Format("[perf] {0} samples, avg {1:F2} ms, max {2:F2} ms (render+apply, async readback excluded)",
                 _meter.StatSamples, _meter.StatTotalMs / _meter.StatSamples, _meter.StatMaxMs));
             _meter.ResetStats();
+        }
+
+        // Debug text only: rebuilt a few times a second, allocation here is irrelevant.
+        string _verbose = "";
+        float _verboseAt = -1f;
+
+        string VerboseString()
+        {
+            float t = Time.unscaledTime;
+            if (t - _verboseAt < 0.25f) return _verbose;
+            _verboseAt = t;
+            float now = Time.time;
+            float raw = Meters.LocalRaw;
+            float final = MeterMath.Attenuate(raw, OmbarellaConfig.Strength);
+            double avgMs = _meter.StatSamples == 0 ? 0 : _meter.StatTotalMs / _meter.StatSamples;
+            _verbose = string.Format(
+                "score {0:F3}  luma {1:F3}  depth {2:F3}\n" +
+                "average {3:F3} (window {4})  published {5:F3}  hasValue {6}\n" +
+                "vision x{7:F2}  strength {8:F2}  aim scale {9:F2}\n" +
+                "role {10}  in raid {11}  render {12}\n" +
+                "demand {13}  idle {14:F1}s  seed {15}  samples/s {16:F1}\n" +
+                "cost last {17:F2} ms  avg {18:F2}  max {19:F2}  ({20} samples/5s)\n" +
+                "RT {21}px  FOV {22:F0}  orbit {23} r{24:F1} h{25:F1}  occlusion {26}\n" +
+                "ignore clear {27}  luma coef {28:F1}",
+                _meter.LastScore, _meter.LastLuma, _meter.LastColorDepth,
+                _meter.Average, Mathf.RoundToInt(OmbarellaConfig.MeterAverageSamples.Value), raw, _meter.HasValue,
+                final, OmbarellaConfig.Strength, MeterMath.AimOffsetScale(final, OmbarellaConfig.AimNerfValue),
+                _role, _inRaid, _canRender,
+                HasDemand(now), now - _lastDemandTime, _seedSample, OmbarellaConfig.SamplesPerSec.Value,
+                _meter.LastMs, avgMs, _meter.StatMaxMs, _meter.StatSamples,
+                _meter.TexSize, OmbarellaConfig.CameraFOV.Value, OmbarellaConfig.UseOrbitCameraSampling.Value,
+                OmbarellaConfig.OrbitCameraRadius.Value, OmbarellaConfig.OrbitCameraHeightOffset.Value, OmbarellaConfig.RejectOccludedSamples.Value,
+                OmbarellaConfig.IgnoreTransparentPixels.Value, OmbarellaConfig.LumaCoef.Value);
+            return _verbose;
         }
 
         string DebugString()

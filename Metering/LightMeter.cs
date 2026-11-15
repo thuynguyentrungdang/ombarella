@@ -38,6 +38,8 @@ namespace ombarella
         public float LastScore { get; private set; }
 
         // perf counters (debug)
+        public double LastMs;
+        public int TexSize { get { return _texSize; } }
         public int StatSamples;
         public double StatTotalMs;
         public double StatMaxMs;
@@ -232,6 +234,7 @@ namespace ombarella
         void RecordCost()
         {
             double ms = _watch.Elapsed.TotalMilliseconds;
+            LastMs = ms;
             StatSamples++;
             StatTotalMs += ms;
             if (ms > StatMaxMs) StatMaxMs = ms;

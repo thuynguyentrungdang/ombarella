@@ -13,6 +13,9 @@ namespace ombarella
         public static ConfigEntry<float> RedLumaMulti, GreenLumaMulti, BlueLumaMulti;
         public static ConfigEntry<float> RedColorDepthMulti, GreenColorDepthMulti, BlueColorDepthMulti;
         public static ConfigEntry<float> CamHorizontalOffset, CameraFocusHeightOffset, OrbitCameraRadius, OrbitCameraHeightOffset;
+        public static ConfigEntry<HudAnchor> MeterAnchor;
+        public static ConfigEntry<float> MeterOffsetX, MeterOffsetY, MeterFontSize;
+        public static ConfigEntry<bool> VerboseDebug;
         public static ConfigEntry<bool> ForceTargetPlayerRenderers, UseOrbitCameraSampling, RejectOccludedSamples, ExcludeOpticRenderers;
         public static ConfigEntry<float> DebugUpdateFreq, RenderTexturePreviewSize, FixedOrbitAngle;
         public static ConfigEntry<bool> IsDebug, ShowRenderTexturePreview, UseFixedOrbitAngle;
@@ -26,6 +29,10 @@ namespace ombarella
         {
             MasterSwitch = B(c, true, "a - Toggles", "Master Switch", "Toggle all mod functions on/off");
             MeterViz = B(c, true, "a - Toggles", "Enable light meter indicator", "Visual representation of how much you are being lit and how visible you are");
+            MeterAnchor = c.Bind("a - Toggles", "Meter anchor", HudAnchor.TopLeft, "Screen corner the light meter (and debug text) is anchored to");
+            MeterOffsetX = F(c, 20f, "a - Toggles", "Meter offset X", "Pixels from the anchored screen edge, horizontal", 0f, 4000f);
+            MeterOffsetY = F(c, 10f, "a - Toggles", "Meter offset Y", "Pixels from the anchored screen edge, vertical", 0f, 4000f);
+            MeterFontSize = F(c, 18f, "a - Toggles", "Meter font size", "Font size of the light meter and debug text", 8f, 48f);
             OnDemandSampling = B(c, true, "a - Toggles", "On-demand sampling", "Only render light samples while a bot is looking at a player it has not detected yet. Saves performance when no bot is watching; the meter holds its last value meanwhile.");
 
             SamplesPerSec = F(c, 1f, "b - Main Settings", "1-Light samples per second", "Main throttle of the mod; higher = more accurate reading / less perf", 1f, 60f);
@@ -57,6 +64,7 @@ namespace ombarella
 
             IsDebug = B(c, false, "y - Debug", "1) Enable debug logging", "Also logs sample cost (ms) every few seconds");
             DebugUpdateFreq = F(c, 1f, "y - Debug", "2) Debug updates per second", "How frequently the debug logger updates per second", 1f, 10f);
+            VerboseDebug = B(c, false, "y - Debug", "2b) Verbose on-screen debug", "Prints detailed meter info on screen: scores, average, vision multiplier, demand/sampling state, role, perf, camera settings");
             ShowRenderTexturePreview = B(c, false, "y - Debug", "3) Show render texture preview", "Draws the light-meter render texture in the game window for debugging");
             RenderTexturePreviewSize = F(c, 256f, "y - Debug", "4) Render texture preview size", "Size of the render texture debug preview in pixels", 64f, 512f);
             UseFixedOrbitAngle = B(c, false, "y - Debug", "5) Use fixed orbit angle", "Uses the configured orbit angle instead of a random orbit angle for the actual light-meter sample");

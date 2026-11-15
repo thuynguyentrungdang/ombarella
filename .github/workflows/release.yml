@@ -1,0 +1,58 @@
+name: Release
+
+# Ombarella.dll and Ombarella.Fika.dll compile against EFT/BepInEx/SPT assemblies that only exist on a
+# local game install and are not redistributable, so GitHub-hosted runners can NOT build the zips.
+# CI validates the pure-logic tests, checks tag == ModVersion, and creates a DRAFT release with notes
+# from CHANGELOG.md. Build zips locally (`dotnet build ombarella.sln -c Release` ->
+# bin/Release/Ombarella.zip and Ombarella.Fika/bin/Release/Ombarella.Fika.zip), attach to the draft, publish.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  draft-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Test
+        run: dotnet test tests/Ombarella.Tests -c Release
+
+      - name: Check tag matches Directory.Build.props version
+        run: |
+          PROP=$(sed -n 's:.*<ModVersion>\(.*\)</ModVersion>.*:\1:p' Directory.Build.props)
+          if [ "v$PROP" != "${{ github.ref_name }}" ]; then
+            echo "Tag ${{ github.ref_name }} != ModVersion v$PROP in Directory.Build.props"; exit 1
+          fi
+
+      - name: Extract changelog for tag
+        id: changelog
+        run: |
+          TAG="${{ github.ref_name }}"
+          NOTES=$(awk "/^## \[${TAG}\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md)
+          NOTES=$(echo "$NOTES" | sed '/./,$!d' | sed -e :a -e '/^\s*$/{$d;N;ba}')
+          if [ -z "$NOTES" ]; then echo "No CHANGELOG.md entry for $TAG"; exit 1; fi
+          echo "notes<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$NOTES" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NOTES: ${{ steps.changelog.outputs.notes }}
+        run: |
+          TAG="${{ github.ref_name }}"
+          PRERELEASE=()
+          case "$TAG" in *-*) PRERELEASE=(--prerelease);; esac
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes "$NOTES" \
+            --draft "${PRERELEASE[@]}"

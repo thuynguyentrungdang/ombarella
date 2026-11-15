@@ -51,10 +51,12 @@ namespace ombarella
             _meter = new LightMeter(gameObject);
             _hud = gameObject.AddComponent<MeterHud>();
             _hud.enabled = false;
+            _hud.GetActive = () => _inRaid && _player != null;
             _hud.GetValue = () => Meters.LocalRaw;
             _hud.GetDebug = DebugString;
             _hud.GetVerbose = VerboseString;
-            _hud.GetTexture = () => _meter.Texture;
+            _hud.GetTexture = () => _meter.PreviewTexture;
+            _hud.GetPreviewGain = () => OmbarellaConfig.Exposure.Value;
 
             LoadPatches();
             StartCoroutine(PollLoop());
@@ -112,6 +114,7 @@ namespace ombarella
 
         void Poll()
         {
+            Meters.Now = Time.time;
             if (!OmbarellaConfig.Enabled)
             {
                 if (_inRaid) EndRaid();
@@ -257,7 +260,7 @@ namespace ombarella
                 "demand {13}  idle {14:F1}s  seed {15}  samples/s {16:F1}\n" +
                 "cost last {17:F2} ms  avg {18:F2}  max {19:F2}  ({20} samples/5s)\n" +
                 "RT {21}px  FOV {22:F0}  orbit {23} r{24:F1} h{25:F1}  occlusion {26}\n" +
-                "ignore clear {27}  luma coef {28:F1}",
+                "ignore clear {27}  exposure {28:+0.0;-0.0;0.0} EV",
                 _meter.LastScore, _meter.LastLuma, _meter.LastColorDepth,
                 _meter.Average, Mathf.RoundToInt(OmbarellaConfig.MeterAverageSamples.Value), raw, _meter.HasValue,
                 final, OmbarellaConfig.Strength, MeterMath.AimOffsetScale(final, OmbarellaConfig.AimNerfValue),
@@ -266,7 +269,7 @@ namespace ombarella
                 _meter.LastMs, avgMs, _meter.StatMaxMs, _meter.StatSamples,
                 _meter.TexSize, OmbarellaConfig.CameraFOV.Value, OmbarellaConfig.UseOrbitCameraSampling.Value,
                 OmbarellaConfig.OrbitCameraRadius.Value, OmbarellaConfig.OrbitCameraHeightOffset.Value, OmbarellaConfig.RejectOccludedSamples.Value,
-                OmbarellaConfig.IgnoreTransparentPixels.Value, OmbarellaConfig.LumaCoef.Value);
+                OmbarellaConfig.IgnoreTransparentPixels.Value, OmbarellaConfig.Exposure.Value);
             return _verbose;
         }
 

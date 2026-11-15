@@ -18,6 +18,7 @@ namespace ombarella
         readonly GameObject _host;
         readonly MeterAverager _averager = new MeterAverager();
         readonly PlayerRendererSet _renderers = new PlayerRendererSet();
+        readonly SkyHider _sky = new SkyHider();
         readonly Action<AsyncGPUReadbackRequest> _onReadback;
         readonly Stopwatch _watch = new Stopwatch();
 
@@ -96,14 +97,39 @@ namespace ombarella
             return Mathf.Max(8, Mathf.RoundToInt(v / 8f) * 8);
         }
 
+        AmbientLight _ambient;
+
+        /// <summary>
+        /// EFT adds its sky/natural ambient as an AfterLighting command buffer ("Custom Ambient", AmbientLight.cs) that
+        /// OnRenderObjectManager only attaches to CameraManager.Camera and the optic camera. Our camera never got it, so only real
+        /// Unity lights (lamps) lit the frame and outdoor light read ~0 at midday (sun light is 0 in overcast, RenderSettings ambient is 0).
+        /// Calling the public hook for our camera makes AmbientLight create its per-camera buffers. Cheap: a dictionary hit after the first call.
+        /// </summary>
+        void RegisterEftAmbient()
+        {
+            if (!OmbarellaConfig.UseEftAmbient.Value) return;
+            if (_ambient == null) _ambient = UnityEngine.Object.FindObjectOfType<AmbientLight>();
+            if (_ambient == null) return;
+            try { _ambient.ManualOnRenderObject(_cam); }
+            catch (Exception e)
+            {
+                OmbarellaConfig.UseEftAmbient.Value = false; // never break sampling over a cosmetic pass
+                Plugin.Log.LogError("EFT ambient hook failed, disabled: " + e);
+            }
+        }
+
         void ApplyCameraSettings()
         {
             _cam.fieldOfView = OmbarellaConfig.CameraFOV.Value;
-            _cam.clearFlags = CameraClearFlags.Skybox;
-            _cam.backgroundColor = Color.black;
+            _cam.rect = new Rect(0f, 0f, 1f, 1f);
+            // Alpha-0 clear = empty view is skipped by ScoreCalculator (IgnoreTransparentPixels).
+            _cam.clearFlags = CameraClearFlags.SolidColor;
+            _cam.backgroundColor = new Color(0f, 0f, 0f, 0f);
             _cam.cullingMask = -1;
             _cam.renderingPath = RenderingPath.UsePlayerSettings;
-            _cam.allowHDR = false;
+            // HDR on: with LDR (false) the deferred light buffer is log-encoded and every empty pixel resolves white,
+            // ignoring the clear color (dump-verified; forward and HDR-deferred both clear correctly).
+            _cam.allowHDR = true;
             _cam.allowMSAA = false;
             _cam.useOcclusionCulling = true;
             _cam.nearClipPlane = 0.01f;
@@ -116,6 +142,7 @@ namespace ombarella
             if (_cam != null) _cam.targetTexture = null;
             if (_rt != null) { _rt.Release(); UnityEngine.Object.Destroy(_rt); _rt = null; }
             if (_readTex != null) { UnityEngine.Object.Destroy(_readTex); _readTex = null; }
+            if (_previewTex != null) { UnityEngine.Object.Destroy(_previewTex); _previewTex = null; }
         }
 
         /// <summary>
@@ -132,9 +159,16 @@ namespace ombarella
             if (!PositionCamera(target, observers)) return false;
             if (!_renderers.Refresh(target, OmbarellaConfig.ExcludeOpticRenderers.Value)) return false;
 
+            RegisterEftAmbient();
             _renderers.Apply(OmbarellaConfig.ForceTargetPlayerRenderers.Value);
-            try { _cam.Render(); }
-            finally { _renderers.Restore(); }
+            if (OmbarellaConfig.ExcludeSky.Value) _sky.Hide();
+            if (OmbarellaConfig.DumpRenderTexture.Value) ProbeFrustum();
+            try
+            {
+                _cam.Render();
+                if (OmbarellaConfig.DumpRenderTexture.Value) DumpVariants();
+            }
+            finally { _sky.Restore(); _renderers.Restore(); }
 
             _pendingSettings = CaptureSettings();
             if (OmbarellaConfig.UseAsyncGPUReadback.Value && SystemInfo.supportsAsyncGPUReadback)
@@ -186,7 +220,7 @@ namespace ombarella
         {
             return new ScoreSettings
             {
-                LumaCoef = OmbarellaConfig.LumaCoef.Value,
+                LumaCoef = 1f, // exposure is applied to the pixels instead (Core/Exposure.cs)
                 RedLumaMulti = OmbarellaConfig.RedLumaMulti.Value,
                 GreenLumaMulti = OmbarellaConfig.GreenLumaMulti.Value,
                 BlueLumaMulti = OmbarellaConfig.BlueLumaMulti.Value,
@@ -219,8 +253,260 @@ namespace ombarella
             Accept(_readTex.GetRawTextureData<byte>().AsReadOnlySpan());
         }
 
-        void Accept(ReadOnlySpan<byte> rgba)
+        /// <summary>
+        /// Debug only (dump toggle on): re-render the same pose with fog off / rain+particles hidden / magenta clear and write
+        /// ombarella_rgb_{variant}.png each, to bisect what paints the white. Blocking reads, runs once per dump.
+        /// </summary>
+        void DumpVariants()
         {
+            try
+            {
+                var hide = new List<Renderer>();
+                Renderer[] all = UnityEngine.Object.FindObjectsOfType<Renderer>();
+                for (int i = 0; i < all.Length; i++)
+                {
+                    Renderer r = all[i];
+                    if (r == null || r.forceRenderingOff || !r.enabled) continue;
+                    Material m = r.sharedMaterial;
+                    string sh = m != null && m.shader != null ? m.shader.name : "";
+                    // additive/overlay effect shaders: rain, sparks, particles
+                    if (sh.IndexOf("Rain", StringComparison.OrdinalIgnoreCase) >= 0 || sh.IndexOf("Particle", StringComparison.OrdinalIgnoreCase) >= 0) hide.Add(r);
+                }
+
+                bool fog = RenderSettings.fog;
+                Color bg = _cam.backgroundColor;
+                string dir = BepInEx.Paths.BepInExRootPath;
+                // Last dump: background stayed white even with magenta clear, fog off, rain/decals/sky hidden, so it is not a
+                // Renderer. Suspect the deferred LDR path (allowHDR=false). Compare rendering path and HDR, whole scene and player only.
+                int pm = LayerMask.GetMask("Player");
+                int cm = _cam.cullingMask;
+                RenderingPath path = _cam.renderingPath;
+                bool hdr = _cam.allowHDR;
+                _cam.backgroundColor = new Color(1f, 0f, 1f, 1f); // magenta clear: shows what is genuinely empty
+                try
+                {
+                    _cam.renderingPath = RenderingPath.Forward;
+                    DumpVariant(dir, "forward", true, hide, false);
+                    if (pm != 0) { _cam.cullingMask = pm; DumpVariant(dir, "forward_playeronly", true, hide, false); _cam.cullingMask = cm; }
+                    _cam.renderingPath = path;
+                    _cam.allowHDR = true;
+                    DumpVariant(dir, "hdr", true, hide, false);
+                    if (pm != 0) { _cam.cullingMask = pm; DumpVariant(dir, "hdr_playeronly", true, hide, false); _cam.cullingMask = cm; }
+                    DumpCopyMain(dir, hide);
+                    // what the player's own camera shows right now (includes HUD), written at end of frame
+                    ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(dir, "ombarella_screen.png"));
+                }
+                finally
+                {
+                    _cam.renderingPath = path; _cam.allowHDR = hdr; _cam.cullingMask = cm; _cam.backgroundColor = bg;
+                }
+                RenderSettings.fog = fog;
+                _cam.Render(); // restore: the pending async readback must see the normal frame, not the last variant
+                Plugin.Log.LogInfo("[dumpvariants] wrote 4 variants (forward, forward_playeronly, hdr, hdr_playeronly), hid " + hide.Count + " effect renderers");
+            }
+            catch (Exception e) { Plugin.Log.LogError("dump variants failed: " + e.Message); }
+        }
+
+        /// <summary>Debug only: same pose, but with every Camera property copied from the main camera (HDR, path, clip, occlusion, etc.).</summary>
+        void DumpCopyMain(string dir, List<Renderer> hide)
+        {
+            Camera main = Camera.main;
+            if (main == null) { Plugin.Log.LogInfo("[dumpvariants] copymain skipped: no Camera.main"); return; }
+            Vector3 pos = _cam.transform.position;
+            Quaternion rot = _cam.transform.rotation;
+            float fov = _cam.fieldOfView;
+            try
+            {
+                _cam.CopyFrom(main);
+                _cam.transform.SetPositionAndRotation(pos, rot);
+                _cam.targetTexture = _rt;
+                _cam.rect = new Rect(0f, 0f, 1f, 1f); // CopyFrom brings main's viewport rect: rendered into a sub-rectangle of our RT
+                _cam.ResetAspect();
+                _cam.fieldOfView = fov;
+                _cam.nearClipPlane = 0.01f;
+                _cam.farClipPlane = 20f;
+                _cam.clearFlags = CameraClearFlags.SolidColor;
+                _cam.backgroundColor = new Color(1f, 0f, 1f, 1f);
+                _cam.cullingMask = -1;
+                Plugin.Log.LogInfo(string.Format("[dumpvariants] copymain: path {0} hdr {1} occlusion {2} dynRes {3} clearFlags was {4}",
+                    _cam.actualRenderingPath, _cam.allowHDR, _cam.useOcclusionCulling, _cam.allowDynamicResolution, main.clearFlags));
+                DumpVariant(dir, "copymain", true, hide, false);
+            }
+            finally
+            {
+                ApplyCameraSettings();
+                _cam.targetTexture = _rt;
+                _cam.transform.SetPositionAndRotation(pos, rot);
+            }
+        }
+
+        void DumpVariant(string dir, string name, bool fogOn, List<Renderer> hide, bool hideEffects)
+        {
+            bool fogWas = RenderSettings.fog;
+            RenderSettings.fog = fogOn;
+            if (hideEffects) for (int i = 0; i < hide.Count; i++) if (hide[i] != null) hide[i].forceRenderingOff = true;
+            try
+            {
+                _cam.Render();
+                if (_readTex == null || _readTex.width != _texSize)
+                {
+                    if (_readTex != null) UnityEngine.Object.Destroy(_readTex);
+                    _readTex = new Texture2D(_texSize, _texSize, TextureFormat.RGBA32, false);
+                }
+                RenderTexture prev = RenderTexture.active;
+                RenderTexture.active = _rt;
+                _readTex.ReadPixels(new Rect(0, 0, _texSize, _texSize), 0, 0, false);
+                RenderTexture.active = prev;
+                byte[] raw = _readTex.GetRawTextureData<byte>().ToArray();
+                System.IO.File.WriteAllBytes(System.IO.Path.Combine(dir, "ombarella_rgb_" + name + ".png"), PngWriter.Encode(raw, _texSize, false, 8));
+            }
+            finally
+            {
+                if (hideEffects) for (int i = 0; i < hide.Count; i++) if (hide[i] != null) hide[i].forceRenderingOff = false;
+                RenderSettings.fog = fogWas;
+            }
+        }
+
+        /// <summary>Debug only (dump toggle on): log the biggest enabled renderers inside the light camera frustum, to find what draws the white.</summary>
+        int _probeCamLogs;
+
+        /// <summary>Probe only: logs what the sun/ambient look like at the moment each camera starts rendering.</summary>
+        void ProbeOnPreRender(Camera c)
+        {
+            if (c != _cam && c != Camera.main) return;
+            TOD_Sky tod = TOD_Sky.Instance;
+            Light sun = tod != null && tod.Components != null ? tod.Components.LightSource : null;
+            Plugin.Log.LogInfo(string.Format("[probe] prerender {0}: sun {1:F2} enabled {2}, ambient {3}, mode {4}, probe L0 {5:F2}, frame {6}",
+                c == _cam ? "OMBARELLA" : "main", sun != null ? sun.intensity : -1f, sun != null && sun.isActiveAndEnabled,
+                RenderSettings.ambientLight, RenderSettings.ambientMode, RenderSettings.ambientProbe[0, 0], Time.frameCount));
+            if (--_probeCamLogs <= 0) Camera.onPreRender -= ProbeOnPreRender;
+        }
+
+        void ProbeFrustum()
+        {
+            try
+            {
+                Plugin.Log.LogInfo("[probe] sky: " + _sky.Status + ", clearFlags " + _cam.clearFlags + ", bg " + _cam.backgroundColor + ", far " + _cam.farClipPlane + ", mask " + _cam.cullingMask + ", path " + _cam.actualRenderingPath + ", fog " + RenderSettings.fog);
+                Plane[] planes = GeometryUtility.CalculateFrustumPlanes(_cam);
+                TOD_Sky tod = TOD_Sky.Instance;
+                Light sun = tod != null && tod.Components != null ? tod.Components.LightSource : null;
+                Camera main = Camera.main;
+                Plugin.Log.LogInfo(string.Format("[probe] light: colorSpace {0}, ambientMode {1}, ambientIntensity {2:F2}, ambient {3}, todLightIntensity {4:F2}, lightSource {5} intensity {6:F2} shadows {7}, mainCam hdr {8} path {9}, cam hdr {10}, rt {11}",
+                    QualitySettings.activeColorSpace, RenderSettings.ambientMode, RenderSettings.ambientIntensity, RenderSettings.ambientLight,
+                    tod != null ? tod.LightIntensity : -1f, sun != null ? sun.name : "-", sun != null ? sun.intensity : -1f, sun != null ? sun.shadows.ToString() : "-",
+                    main != null ? main.allowHDR.ToString() : "-", main != null ? main.actualRenderingPath.ToString() : "-", _cam.allowHDR, _rt != null ? _rt.format + "/" + _rt.sRGB : "-"));
+                var comps = new System.Text.StringBuilder();
+                if (main != null)
+                {
+                    foreach (Behaviour b in main.GetComponents<Behaviour>())
+                        if (b != null) comps.Append(b.GetType().Name).Append(b.enabled ? "" : "(off)").Append(' ');
+                }
+                Plugin.Log.LogInfo("[probe] scene " + UnityEngine.SceneManagement.SceneManager.GetActiveScene().name + ", tod " + (tod != null) + ", mainCam components: " + comps);
+                if (tod != null)
+                    Plugin.Log.LogInfo(string.Format("[probe] tod hour {0:F2}, sunZenith {1:F1}, isDay {2}, lerp {3:F2}, dayIntensity {4:F2}, nightIntensity {5:F2}",
+                        tod.Cycle != null ? tod.Cycle.Hour : -1f, tod.SunZenith, tod.IsDay, tod.LerpValue, tod.Day != null ? tod.Day.LightIntensity : -1f, tod.Night != null ? tod.Night.LightIntensity : -1f));
+                _probeCamLogs = 8;
+                Camera.onPreRender -= ProbeOnPreRender;
+                Camera.onPreRender += ProbeOnPreRender;
+                Light[] lights = UnityEngine.Object.FindObjectsOfType<Light>();
+                int dirs = 0;
+                for (int i = 0; i < lights.Length; i++)
+                {
+                    Light l = lights[i];
+                    if (l == null || l.type != LightType.Directional || !l.isActiveAndEnabled) continue;
+                    dirs++;
+                    Plugin.Log.LogInfo(string.Format("[probe] dir light {0} intensity {1:F2} color {2} mask {3} shadows {4}", l.name, l.intensity, l.color, l.cullingMask, l.shadows));
+                }
+                Plugin.Log.LogInfo("[probe] lights total " + lights.Length + ", directional " + dirs);
+                Renderer[] all = UnityEngine.Object.FindObjectsOfType<Renderer>();
+                var hits = new List<Renderer>();
+                for (int i = 0; i < all.Length; i++)
+                {
+                    Renderer r = all[i];
+                    if (r == null || !r.enabled || r.forceRenderingOff || !r.gameObject.activeInHierarchy) continue;
+                    if (GeometryUtility.TestPlanesAABB(planes, r.bounds)) hits.Add(r);
+                }
+                hits.Sort((a, b) => b.bounds.size.sqrMagnitude.CompareTo(a.bounds.size.sqrMagnitude));
+                Plugin.Log.LogInfo("[probe] " + hits.Count + " renderers in frustum, largest:");
+                for (int i = 0; i < hits.Count && i < 12; i++)
+                {
+                    Renderer r = hits[i];
+                    Material m = r.sharedMaterial;
+                    Plugin.Log.LogInfo(string.Format("[probe]  {0} layer {1} ({2}) size {3:F0} shader {4} queue {5}",
+                        r.name, r.gameObject.layer, LayerMask.LayerToName(r.gameObject.layer), r.bounds.size.magnitude,
+                        m != null && m.shader != null ? m.shader.name : "-", m != null ? m.renderQueue : -1));
+                }
+            }
+            catch (Exception e) { Plugin.Log.LogError("probe failed: " + e.Message); }
+        }
+
+        void DumpFrame(ReadOnlySpan<byte> rgba)
+        {
+            OmbarellaConfig.DumpRenderTexture.Value = false;
+            try
+            {
+                int n = rgba.Length / 4, clear = 0, white = 0, litNoAlpha = 0;
+                int[] rowSum = new int[_texSize];
+                for (int i = 0; i < n; i++)
+                {
+                    int o = i * 4, r = rgba[o], g = rgba[o + 1], b = rgba[o + 2], a = rgba[o + 3];
+                    if (a == 0) { clear++; if ((r | g | b) != 0) litNoAlpha++; }
+                    if (r > 240 && g > 240 && b > 240) white++;
+                    rowSum[i / _texSize] += (r + g + b) / 3;
+                }
+                string dir = BepInEx.Paths.BepInExRootPath;
+                System.IO.File.WriteAllBytes(System.IO.Path.Combine(dir, "ombarella_rgb.png"), PngWriter.Encode(rgba, _texSize, false, 8));
+                System.IO.File.WriteAllBytes(System.IO.Path.Combine(dir, "ombarella_alpha.png"), PngWriter.Encode(rgba, _texSize, true, 8));
+                // readback rows are bottom-first: row 0 = bottom of frame
+                int third = _texSize / 3;
+                Plugin.Log.LogInfo(string.Format("[dump] {0}px: alpha0 {1:P0} (of those rgb>0: {2}), white(>240) {3:P0}, mean RGB bottom/mid/top third {4}/{5}/{6}",
+                    n, clear / (float)n, litNoAlpha, white / (float)n,
+                    ThirdMean(rowSum, 0, third), ThirdMean(rowSum, third, 2 * third), ThirdMean(rowSum, 2 * third, _texSize)));
+            }
+            catch (Exception e) { Plugin.Log.LogError("dump failed: " + e.Message); }
+        }
+
+        static int ThirdMean(int[] rowSum, int from, int to)
+        {
+            long s = 0; int c = Math.Max(1, to - from);
+            for (int i = from; i < to; i++) s += rowSum[i];
+            return (int)(s / c / Math.Max(1, rowSum.Length));
+        }
+
+        Texture2D _previewTex;
+        byte[] _previewBytes;
+
+        /// <summary>Debug preview: the exact post-exposure pixels that get scored (not the live RT, which dump variants overwrite).</summary>
+        public Texture PreviewTexture { get { return _previewTex; } }
+        byte[] _exposed;
+
+        void UpdatePreview(ReadOnlySpan<byte> rgba)
+        {
+            int n = _texSize * _texSize * 4;
+            if (rgba.Length != n) return;
+            if (_previewTex == null || _previewTex.width != _texSize)
+            {
+                if (_previewTex != null) UnityEngine.Object.Destroy(_previewTex);
+                _previewTex = new Texture2D(_texSize, _texSize, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
+                _previewBytes = new byte[n];
+            }
+            byte[] o = _previewBytes;
+            for (int i = 0; i < n; i += 4)
+            {
+                if (rgba[i + 3] == 0) { o[i] = o[i + 1] = o[i + 2] = 48; o[i + 3] = 255; continue; } // empty/clear = grey, distinct from black
+                o[i] = rgba[i]; o[i + 1] = rgba[i + 1]; o[i + 2] = rgba[i + 2]; o[i + 3] = 255;
+            }
+            _previewTex.LoadRawTextureData(o);
+            _previewTex.Apply(false);
+        }
+
+        void Accept(ReadOnlySpan<byte> raw)
+        {
+            if (OmbarellaConfig.DumpRenderTexture.Value) DumpFrame(raw); // raw, pre-exposure
+            if (_exposed == null || _exposed.Length != raw.Length) _exposed = new byte[raw.Length];
+            Exposure.Apply(raw, _exposed, Exposure.GainFromEv(OmbarellaConfig.Exposure.Value));
+            ReadOnlySpan<byte> rgba = _exposed;
+            if (OmbarellaConfig.ShowRenderTexturePreview.Value) UpdatePreview(rgba);
             float score, luma, cd;
             if (!ScoreCalculator.TryCalculate(rgba, _pendingSettings, out score, out luma, out cd)) return;
             LastScore = score; LastLuma = luma; LastColorDepth = cd;

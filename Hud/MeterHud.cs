@@ -15,19 +15,22 @@ namespace ombarella
         const float VerboseWidth = 620f;
 
         GUIStyle _style;
+        public System.Func<bool> GetActive;
         public System.Func<float> GetValue;
         public System.Func<string> GetDebug;
         public System.Func<string> GetVerbose;
-        public System.Func<RenderTexture> GetTexture;
+        public System.Func<Texture> GetTexture;
+        public System.Func<float> GetPreviewGain;
 
         void OnGUI()
         {
             if (Event.current.type != EventType.Repaint) return;
+            if (GetActive == null || !GetActive()) return; // raid only: no meter, debug text or preview in menus/hideout
 
             bool meter = OmbarellaConfig.MeterViz.Value && GetValue != null;
             bool debugLine = meter && OmbarellaConfig.IsDebug.Value && GetDebug != null;
             bool verbose = OmbarellaConfig.VerboseDebug.Value && GetVerbose != null;
-            RenderTexture rt = OmbarellaConfig.ShowRenderTexturePreview.Value && GetTexture != null ? GetTexture() : null;
+            Texture rt = OmbarellaConfig.ShowRenderTexturePreview.Value && GetTexture != null ? GetTexture() : null;
             if (!meter && !verbose && rt == null) return;
 
             if (_style == null)
@@ -59,10 +62,16 @@ namespace ombarella
             if (meter) { GUI.Label(new Rect(x, y, MeterWidth, meterH), meterText, _style); y += meterH; }
             if (debugLine) { GUI.Label(new Rect(x, y, VerboseWidth, debugH), debugText, _style); y += debugH; }
             if (verbose) { GUI.Label(new Rect(x, y, VerboseWidth, verboseH), verboseText, _style); y += verboseH; }
-            if (rt != null) DrawPreview(new Rect(x, y + 2f, previewSize, previewSize), rt);
+            if (rt != null)
+            {
+                var r = new Rect(x, y + 2f, previewSize, previewSize);
+                DrawPreview(r, rt);
+                float ev = GetPreviewGain != null ? GetPreviewGain() : 0f;
+                GUI.Label(new Rect(r.x + 4f, r.y + 2f, 160f, 22f), "post-exposure " + ev.ToString("+0.#;-0.#;0") + " EV", _style);
+            }
         }
 
-        static void DrawPreview(Rect rect, RenderTexture rt)
+        static void DrawPreview(Rect rect, Texture rt)
         {
             Color prev = GUI.color;
             GUI.color = Color.black;

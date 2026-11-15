@@ -16,10 +16,25 @@ All numbers are from code analysis, NOT measured. Enable debug logging: `[perf]`
 | 10 | Compute-shader sync fallback: dumps float4/pixel (4x bytes) then CPU loop, plus asset bundle | `Texture2D.ReadPixels` blocking fallback, same scorer; bundle dropped |
 | 11 | Sampled at fixed rate even when no bot cares | **On-demand sampling** (idea: user). Patch stamps demand when a bot evaluates a target with `IsVisible == false`; sampler runs only within 2 s of a stamp. Value is held meanwhile; averaging history cleared after 10 s idle |
 
+## Who is ignored (no demand stamp, no scaling)
+- Bots not evaluating a player: patch only runs when the bot computes visibility for a target.
+- Bots that already see the player (`IsVisible`): no demand.
+- Ghosted bots (ORBIT Ghost Mode): need no handling. Dormant ghosts run no vision checks against players and have no `GoalEnemy`; they wake when a player gets close. No ORBIT dependency in this mod.
+- Bots vs other bots: vanilla.
+
+## Hot-path cost of the bot patches (runs on the bot-owning process: solo, host, headless)
+`GetVisibilityChangeSpeedK` fires per bot per enemy (bot-vs-bot pairs included), so the patch is ordered cheapest-first:
+1. `Enabled` static bool.
+2. `Registry.Observe`: ONE linear scan of the few tracked human ids (reference-equal fast path, no string hashing, no alloc). Bot-vs-bot pairs exit here.
+3. Only for bot-to-human pairs: demand stamp, scale.
+- Time comes from `Meters.Now` (set by the 0.25 s poll) instead of the native `Time.time` call.
+- Aim patch: `GoalEnemy` null (ghosts, idle bots) exits first.
+- Before: 2 to 3 string hashes + `Time.time` per pair. Now: a short scan + bool/null checks for bot-vs-bot. Not measured.
+
 ## Not changed (needs in-game profiling)
 - `Camera.Render()` itself (scene render + shadows within 20 m) is the dominant cost and still a 1-frame spike per sample. Candidates: culling mask trimming, lower far plane. Risk: alters measured luma, needs A/B.
 - Light-camera layer mask `-1` kept.
 
 ## Behaviour changes to know
 - Vision/aim handicap now applies only to tracked human targets. Bot-vs-bot checks are vanilla (0.4.3 applied the local player's meter to all of them).
-- Aim formula preserved: `end = real + offsetStandart * timeCoef * (1-meter)*100*AimNerf`; bad-shoot and recoil offsets dropped; AimNerf 0 or full light = zero offset (laser aim). Probably unintended; left as is pending your call.
+- Aim: dark-only penalty added on top of the vanilla/SAIN end point: `end += offsetStandart * timeCoef * (1-meter)*100*AimNerf`. Bright light or AimNerf 0 = untouched (0.4.3 replaced the end point, giving zero spread at full light).

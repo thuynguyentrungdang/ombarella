@@ -23,18 +23,17 @@ namespace ombarella
         {
             if (!OmbarellaConfig.Enabled || __instance == null) return;
 
+            // Hot path: per bot, per enemy, on the process that owns the bots (host/headless). Cheapest test first:
+            // one scan of the few tracked human ids rejects every bot-vs-bot pair before anything else runs.
+            float raw; bool fresh;
             string id = __instance.ProfileId;
-            float now = Time.time;
-            VisibilityRegistry reg = Meters.Registry;
+            float now = Meters.Now;
+            if (!Meters.Registry.Observe(id, now, false, out raw, out fresh)) return;
+            if (!__instance.IsVisible) Meters.Registry.MarkDemand(id, now); // not yet detected: light is worth measuring
+            if (!fresh) return;
 
-            if (!__instance.IsVisible) reg.MarkDemand(id, now);
-
-            float raw;
-            if (!reg.TryGetRaw(id, now, out raw)) return;
-
-            float v = MeterMath.Attenuate(raw, OmbarellaConfig.Strength);
-            if (__instance.HaveNightVision()) v = MeterMath.NightVisionBlend(v);
-            __result *= v;
+            __result *= MeterMath.VisionSpeed(raw, OmbarellaConfig.VisionCurveExponent.Value, OmbarellaConfig.Strength,
+                __instance.HaveNightVision(), __instance.Distance, OmbarellaConfig.VisionRampNear.Value, OmbarellaConfig.VisionRampFar.Value);
         }
     }
 }

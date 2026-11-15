@@ -13,6 +13,6 @@
   </ItemGroup>
   <!-- Pure logic compiled in (no Unity/EFT refs); dotnet test never triggers a deploy. -->
   <ItemGroup>
-    <Compile Include="..\..\Core\ScoreCalculator.cs;..\..\Core\MeterAverager.cs;..\..\Core\VisibilityRegistry.cs;..\..\Core\MeterMath.cs" LinkBase="Core" />
+    <Compile Include="..\..\Core\ScoreCalculator.cs;..\..\Core\MeterAverager.cs;..\..\Core\VisibilityRegistry.cs;..\..\Core\MeterMath.cs;..\..\Core\Exposure.cs" LinkBase="Core" />
   </ItemGroup>
 </Project>

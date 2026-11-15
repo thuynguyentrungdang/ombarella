@@ -22,7 +22,8 @@ namespace ombarella
             for (int i = 0; i < observers.Count; i++)
             {
                 Player o = observers[i];
-                if (o == player || !Utils.IsLightMeterUsablePlayer(o)) continue;
+                // inactive GameObject = dormant/ghosted bot (ORBIT, AI limiters): still in the alive list, frozen pose, not a real viewpoint
+                if (o == player || !Utils.IsLightMeterUsablePlayer(o) || !o.gameObject.activeInHierarchy) continue;
                 float d = (o.Position - player.Position).sqrMagnitude;
                 if (d < best) { best = d; closest = o; }
             }

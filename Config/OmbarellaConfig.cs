@@ -8,8 +8,8 @@ namespace ombarella
     {
         public static ConfigEntry<bool> MasterSwitch, MeterViz, OnDemandSampling;
         public static ConfigEntry<float> MeterAttenuationCoef, SamplesPerSec, MeterAverageSamples, AimNerf;
-        public static ConfigEntry<float> CameraFOV, LumaCoef, RenderTextureResolution;
-        public static ConfigEntry<bool> UseAsyncGPUReadback, IgnoreTransparentPixels;
+        public static ConfigEntry<float> CameraFOV, Exposure, RenderTextureResolution, VisionCurveExponent, VisionRampNear, VisionRampFar;
+        public static ConfigEntry<bool> UseAsyncGPUReadback, IgnoreTransparentPixels, ExcludeSky, UseEftAmbient;
         public static ConfigEntry<float> RedLumaMulti, GreenLumaMulti, BlueLumaMulti;
         public static ConfigEntry<float> RedColorDepthMulti, GreenColorDepthMulti, BlueColorDepthMulti;
         public static ConfigEntry<float> CamHorizontalOffset, CameraFocusHeightOffset, OrbitCameraRadius, OrbitCameraHeightOffset;
@@ -18,7 +18,7 @@ namespace ombarella
         public static ConfigEntry<bool> VerboseDebug;
         public static ConfigEntry<bool> ForceTargetPlayerRenderers, UseOrbitCameraSampling, RejectOccludedSamples, ExcludeOpticRenderers;
         public static ConfigEntry<float> DebugUpdateFreq, RenderTexturePreviewSize, FixedOrbitAngle;
-        public static ConfigEntry<bool> IsDebug, ShowRenderTexturePreview, UseFixedOrbitAngle;
+        public static ConfigEntry<bool> IsDebug, ShowRenderTexturePreview, UseFixedOrbitAngle, DumpRenderTexture;
 
         // hot-path caches (patches read these, not ConfigEntry)
         public static volatile bool Enabled = true;
@@ -38,12 +38,17 @@ namespace ombarella
             SamplesPerSec = F(c, 1f, "b - Main Settings", "1-Light samples per second", "Main throttle of the mod; higher = more accurate reading / less perf", 1f, 60f);
             MeterAverageSamples = F(c, 15f, "b - Main Settings", "2-Light meter average samples", "Number of valid light samples to average before applying the result. Higher values smooth noisy orbit sampling.", 1f, 600f);
             MeterAttenuationCoef = F(c, 1f, "b - Main Settings", "3-Light meter strength", "Determines how quickly bots can spot you per your visiblity level (100% = bots get full effect, slower recognition time). In Fika the host/headless value applies.", 0f, 1f);
-            AimNerf = F(c, 0.03f, "b - Main Settings", "4-Bot aim handicap", "Determines how much bots' aim is affected by your visibility level (higher = bots' aim more nerfed by your viz level; zero = bots aim with no offset). In Fika the host/headless value applies.", 0f, 0.1f);
+            AimNerf = F(c, 0.03f, "b - Main Settings", "4-Bot aim handicap", "Extra aim spread for bots when you are in the dark (higher = worse bot aim in low light; zero = no penalty). Bright light leaves bot aim untouched. In Fika the host/headless value applies.", 0f, 0.1f);
 
+            VisionCurveExponent = F(c, 0.5f, "b - Main Settings", "5-Darkness curve exponent", "Bot vision speed = meter ^ this. 1 = linear (meter 0.1 means 10x slower), 0.5 = about 3x slower at 0.1, closer to human vision. In Fika the host/headless value applies.", 0.1f, 1f);
+            VisionRampNear = F(c, 5f, "b - Main Settings", "6-Darkness effect starts (m)", "Bots closer than this ignore the light meter. In Fika the host/headless value applies.", 0f, 100f);
+            VisionRampFar = F(c, 30f, "b - Main Settings", "7-Darkness full effect (m)", "Bots this far or farther get the full light meter effect; fades in linearly from the start distance.", 1f, 200f);
             CameraFOV = F(c, 30f, "c - Advanced Settings", "CameraFOV", "Size of light camera FOV", 10f, 170f);
-            LumaCoef = F(c, 6f, "c - Advanced Settings", "Luma coefficient", "Multiplies the luma result", 1f, 20f);
+            UseEftAmbient = B(c, true, "c - Advanced Settings", "Use EFT sky ambient", "Attaches EFT's own ambient-light pass to the light camera. Without it only lamps light the frame and outdoor daylight reads near zero. Turn off if it causes rendering problems.");
+            Exposure = F(c, 2f, "c - Advanced Settings", "Exposure (EV)", "Stops applied to the raw light-camera image before scoring, clipped at white like a camera (+2 = 4x). The raw render is dark. Raise if bright days score low, lower if dark interiors score high.", -4f, 8f);
             RenderTextureResolution = F(c, 64f, "c - Advanced Settings", "Render texture resolution", "Resolution of the light camera render texture. Applied before raid start and rounded to the nearest multiple of 8.", 16f, 512f);
             UseAsyncGPUReadback = B(c, true, "c - Advanced Settings", "Use async GPU readback", "Avoids blocking the main thread while reading the light camera texture. Disable to use a blocking readback.");
+            ExcludeSky = B(c, true, "c - Advanced Settings", "Exclude sky dome", "Hides EFT's sky dome renderers while the light camera renders. The dome ignores the far plane and drew white at night, inflating the score.");
             IgnoreTransparentPixels = B(c, true, "c - Advanced Settings", "Ignore transparent pixels", "Ignores transparent clear/background pixels when calculating luma and color depth");
 
             RedLumaMulti = F(c, 0.79f, "d - Color Settings", "1-Red luma multi", "Red color in pixel analysis is multiplied by this to produce the luma calculation", 0f, 1f);
@@ -54,11 +59,11 @@ namespace ombarella
             BlueColorDepthMulti = F(c, 0.93f, "d - Color Settings", "6-Blue color depth multi", "Blue color range in pixel analysis is multiplied by this to produce the color depth calculation", 0f, 1f);
 
             CamHorizontalOffset = F(c, 4f, "e - Camera Rig Settings", "Camera horizontal offset", "Distance between the camera and the player focus point on horizontal plane", 0.1f, 5f);
-            CameraFocusHeightOffset = F(c, -0.2f, "e - Camera Rig Settings", "Camera focus height offset", "Vertical offset from the player's ribcage bone. Negative values focus lower on the chest.", -1f, 1f);
+            CameraFocusHeightOffset = F(c, -0.7f, "e - Camera Rig Settings", "Camera focus height offset", "Vertical offset from the player's ribcage bone. Negative values focus lower on the chest.", -1f, 1f);
             ForceTargetPlayerRenderers = B(c, true, "e - Camera Rig Settings", "Force target player renderers", "Temporarily forces the sampled player's renderers visible and renderable by the light camera, then restores them");
             UseOrbitCameraSampling = B(c, true, "e - Camera Rig Settings", "Use orbit camera sampling", "Samples your player from a random orbit around the chest instead of from the nearest other player's position");
-            OrbitCameraRadius = F(c, 4f, "e - Camera Rig Settings", "Orbit camera radius", "Distance from the player's chest when orbit camera sampling is enabled", 0.25f, 12f);
-            OrbitCameraHeightOffset = F(c, 1.5f, "e - Camera Rig Settings", "Orbit camera height offset", "Vertical offset above the player's chest when orbit camera sampling is enabled", -1f, 4f);
+            OrbitCameraRadius = F(c, 3f, "e - Camera Rig Settings", "Orbit camera radius", "Distance from the player's chest when orbit camera sampling is enabled", 0.25f, 12f);
+            OrbitCameraHeightOffset = F(c, 2f, "e - Camera Rig Settings", "Orbit camera height (looks down)", "Camera height above the player's chest. Higher = steeper downward view = less sky/empty distance in frame. At radius 3: 2 gives about 34 degrees down.", -1f, 4f);
             RejectOccludedSamples = B(c, true, "e - Camera Rig Settings", "Reject occluded samples", "Skips a light camera sample when world geometry blocks the ray from the light camera to the player's chest");
             ExcludeOpticRenderers = B(c, true, "e - Camera Rig Settings", "Exclude optic renderers", "Hides ranged optic item renderers while the light camera renders");
 
@@ -69,6 +74,7 @@ namespace ombarella
             RenderTexturePreviewSize = F(c, 256f, "y - Debug", "4) Render texture preview size", "Size of the render texture debug preview in pixels", 64f, 512f);
             UseFixedOrbitAngle = B(c, false, "y - Debug", "5) Use fixed orbit angle", "Uses the configured orbit angle instead of a random orbit angle for the actual light-meter sample");
             FixedOrbitAngle = F(c, 0f, "y - Debug", "6) Fixed orbit angle", "Camera angle around the sampled player's chest when fixed orbit sampling is enabled", 0f, 360f);
+            DumpRenderTexture = B(c, false, "y - Debug", "7) Dump next frame to PNG", "Writes the next metered frame to BepInEx\\ombarella_rgb.png and ombarella_alpha.png (8x upscaled), logs pixel stats, then turns itself off");
 
             RemoveObsolete(c);
             Refresh();

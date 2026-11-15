@@ -9,8 +9,8 @@ namespace ombarella
 {
     /// <summary>
     /// 4.1 target: BotAimingData.UpdateEndTargetPoint (was BotAimingClass.method_13 in 4.0).
-    /// Preserved behaviour: end point = real + offsetStandart * timeCoef * scale(meter); bad-shoot and recoil offsets
-    /// are dropped (verified against 4.0 decompile: Float_13 = _timeCoef, Vector3_4 = _offsetStandart).
+    /// Dark-only penalty: end += offsetStandart * timeCoef * scale(meter), added to the vanilla end point (keeps bad-shoot,
+    /// recoil and SAIN's changes). Bright light or AimNerf 0 = scale 0 = untouched.
     /// Typed field access, no reflection or boxing. Only for tracked human targets.
     /// </summary>
     public class Patch_AimOffset : ModulePatch
@@ -27,16 +27,17 @@ namespace ombarella
 
             BotOwner owner = __instance._owner;
             if (owner == null || owner.Memory == null) return;
-            EnemyInfo goal = owner.Memory.GoalEnemy;
+            EnemyInfo goal = owner.Memory.GoalEnemy; // ghosted bots have none
             if (goal == null) return;
 
             float raw;
-            if (!Meters.Registry.TryGetRaw(goal.ProfileId, Time.time, out raw)) return;
+            if (!Meters.Registry.TryGetRaw(goal.ProfileId, Meters.Now, out raw)) return;
 
             float final = MeterMath.Attenuate(raw, OmbarellaConfig.Strength);
             float scale = MeterMath.AimOffsetScale(final, OmbarellaConfig.AimNerfValue);
-            float aimOffset = __instance._timeCoef * scale;
-            __instance.EndTargetPoint = __instance.RealTargetPoint + __instance._offsetStandart * aimOffset;
+            if (scale <= 0f) return; // bright (or AimNerf 0): vanilla/SAIN end point untouched
+            // add the dark penalty on top of whatever vanilla (and SAIN's own patches) produced
+            __instance.EndTargetPoint += __instance._offsetStandart * (__instance._timeCoef * scale);
         }
     }
 }

@@ -1,6 +1,6 @@
 ﻿namespace ombarella
 {
-    /// <summary>ThatsLit-style meter: "  ▱▱▱▱▱▱▱▱▱▱  ▰▰▰▱▱▱▱▱▱▱▱". Left half stays empty (this meter is one-sided), right half fills 0..10.</summary>
+    /// <summary>One-sided block meter: "▰▰▰▱▱▱▱▱▱▱", fills 0..10 blocks.</summary>
     public static class Visualiser
     {
         const string Empty = "▱";
@@ -12,9 +12,7 @@
             var levels = new string[11];
             for (int n = 0; n <= 10; n++)
             {
-                var sb = new System.Text.StringBuilder("  ");
-                for (int i = 0; i < 10; i++) sb.Append(Empty);
-                sb.Append("  ");
+                var sb = new System.Text.StringBuilder();
                 for (int i = 0; i < 10; i++) sb.Append(i < n ? Full : Empty);
                 levels[n] = sb.ToString();
             }

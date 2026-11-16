@@ -12,13 +12,14 @@ using UnityEngine;
 namespace ombarella.FikaSupport
 {
     /// <summary>Client to host: own raw meter. Fika keys packets by full type name; rename on layout change.</summary>
-    public sealed class OmbMeterPacket : INetSerializable
+    public sealed class OmbMeterPacketV2 : INetSerializable
     {
         public string ProfileId = "";
         public float Meter = 1f;
+        public bool IrLight;
 
-        public void Serialize(NetDataWriter writer) { writer.Put(ProfileId ?? ""); writer.Put(Meter); }
-        public void Deserialize(NetDataReader reader) { ProfileId = reader.GetString(64); Meter = reader.GetFloat(); }
+        public void Serialize(NetDataWriter writer) { writer.Put(ProfileId ?? ""); writer.Put(Meter); writer.Put(IrLight); }
+        public void Deserialize(NetDataReader reader) { ProfileId = reader.GetString(64); Meter = reader.GetFloat(); IrLight = reader.GetBool(); }
     }
 
     /// <summary>Host to client: ack + "a bot is looking at you" (client may skip sampling when false).</summary>
@@ -60,7 +61,7 @@ namespace ombarella.FikaSupport
                 if (server != null)
                 {
                     _server = server;
-                    server.RegisterPacket<OmbMeterPacket, NetPeer>(OnMeter);
+                    server.RegisterPacket<OmbMeterPacketV2, NetPeer>(OnMeter);
                     OmbarellaFikaPlugin.Log.LogInfo("[fika] meter sync registered (host)");
                     return;
                 }
@@ -96,13 +97,13 @@ namespace ombarella.FikaSupport
         // ---- client ----
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        internal static bool SendMeter(string profileId, float meter)
+        internal static bool SendMeter(string profileId, float meter, bool ir)
         {
             FikaClient client = _client as FikaClient;
             if (client == null) return false;
             try
             {
-                var p = new OmbMeterPacket { ProfileId = profileId, Meter = meter };
+                var p = new OmbMeterPacketV2 { ProfileId = profileId, Meter = meter, IrLight = ir };
                 client.SendData(ref p, DeliveryMethod.ReliableSequenced);
                 return true;
             }
@@ -121,13 +122,13 @@ namespace ombarella.FikaSupport
 
         // ---- host ----
 
-        static void OnMeter(OmbMeterPacket p, NetPeer peer)
+        static void OnMeter(OmbMeterPacketV2 p, NetPeer peer)
         {
             try
             {
                 if (p == null || !IsRemoteHuman(p.ProfileId)) return;
                 Meters.Registry.Track(p.ProfileId);
-                Meters.Registry.SetMeter(p.ProfileId, p.Meter, Time.time);
+                Meters.Registry.SetMeter(p.ProfileId, p.Meter, Time.time, p.IrLight);
 
                 Remote r;
                 if (!Remotes.TryGetValue(p.ProfileId, out r))

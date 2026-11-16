@@ -52,13 +52,28 @@ namespace ombarella
             _onReadback = OnReadback;
         }
 
+        bool _suspended;
+
         public void ResetAverage()
         {
             _averager.Clear();
             HasValue = false;
             Average = 1f;
             _pending = false;
+            _suspended = false;
         }
+
+        /// <summary>Weapon light on: no rendering, score pinned to 1 (fully lit). A readback still in flight is dropped.</summary>
+        public void HoldFull()
+        {
+            _suspended = true;
+            _averager.Clear();
+            Average = 1f;
+            HasValue = true;
+        }
+
+        /// <summary>Weapon light off: sampling allowed again. Average stays 1 until the first fresh sample replaces it.</summary>
+        public void Resume() { _suspended = false; }
 
         /// <summary>Drop averaging history, keep last published value (used after idle).</summary>
         public void ResetAverageKeepValue() { _averager.Clear(); }
@@ -151,7 +166,7 @@ namespace ombarella
         /// </summary>
         public bool Sample(Player target, List<Player> observers)
         {
-            if (_pending || _disposed) return false;
+            if (_pending || _disposed || _suspended) return false;
             EnsureResources();
             if (_cam == null || _rt == null) return false;
 
@@ -236,6 +251,7 @@ namespace ombarella
         {
             if (_disposed || !_pending) return;
             _pending = false;
+            if (_suspended) return; // frame was rendered before the light came on
             if (request.hasError) return;
             Accept(request.GetData<byte>().AsReadOnlySpan());
         }

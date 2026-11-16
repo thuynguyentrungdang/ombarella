@@ -19,8 +19,8 @@ namespace ombarella
         /// <summary>Client only: false = remote host reports no bot is looking, sampling may pause. Null = always sample.</summary>
         public static Func<bool> ClientShouldSample;
 
-        /// <summary>Client only: (profileId, rawMeter, time). Called every poll tick; add-on rate-limits.</summary>
-        public static Action<string, float, float> ClientPublish;
+        /// <summary>Client only: (profileId, rawMeter, time, irLightOn). Called every poll tick; add-on rate-limits.</summary>
+        public static Action<string, float, float, bool> ClientPublish;
 
         /// <summary>Host and headless: called every poll tick during a raid with Time.time.</summary>
         public static Action<float> HostTick;
@@ -36,7 +36,7 @@ namespace ombarella
 
         internal static void FireRaidReset() { var f = RaidReset; if (f != null) f(); }
 
-        internal static void FireClientPublish(string id, float raw, float now) { var f = ClientPublish; if (f != null) f(id, raw, now); }
+        internal static void FireClientPublish(string id, float raw, float now, bool ir) { var f = ClientPublish; if (f != null) f(id, raw, now, ir); }
 
         internal static bool ShouldSampleAsClient()
         {

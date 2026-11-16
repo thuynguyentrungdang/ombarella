@@ -40,6 +40,8 @@ namespace ombarella
         float _lastPollInterval = -1f;
         WaitForSecondsRealtime _wait;
         bool _pollErrorLogged;
+        readonly WeaponLightProbe _weaponLight = new WeaponLightProbe();
+        bool _weaponLightOn;
 
         void Awake()
         {
@@ -134,8 +136,19 @@ namespace ombarella
             if (_player == null) return;
 
             UpdateHud();
-            SampleIfDue(now);
-            Publish(now);
+            // White light: everyone sees it, so pause rendering and pin score at 1. IR light: only NVG bots see it
+            // (Patch_VisionSpeed), so keep metering normally for the rest and just publish the flag.
+            WeaponLight light = _weaponLight.Read(_player, now);
+            bool white = light == WeaponLight.White;
+            if (white != _weaponLightOn)
+            {
+                _weaponLightOn = white;
+                if (white) _meter.HoldFull();
+                else { _meter.Resume(); _seedSample = true; _nextSample = 0f; } // fresh sample right away, history was dropped
+                Log.LogInfo(white ? "white weapon light on: sampling paused, score held at 1" : "white weapon light off: sampling resumed");
+            }
+            if (!white) SampleIfDue(now);
+            Publish(now, light == WeaponLight.IR);
             LogStats(now);
         }
 
@@ -146,6 +159,8 @@ namespace ombarella
             _canRender = SystemInfo.graphicsDeviceType != GraphicsDeviceType.Null;
             _seedSample = true;
             _nextSample = 0f;
+            _weaponLightOn = false;
+            _weaponLight.Clear();
             _lastDemandTime = Time.time;
             _lastStatLog = Time.time;
             _meter.ResetAverage();
@@ -219,14 +234,14 @@ namespace ombarella
         }
 
         /// <summary>Hold-last-value publish every tick: keeps registry entry fresh while sampling is paused.</summary>
-        void Publish(float now)
+        void Publish(float now, bool ir)
         {
             if (!_meter.HasValue) return;
             float raw = _meter.Average;
             Meters.LocalRaw = raw;
 
-            if (_role == RaidRole.Client) OmbarellaApi.FireClientPublish(_profileId, raw, now);
-            else Meters.Registry.SetMeter(_profileId, raw, now);
+            if (_role == RaidRole.Client) OmbarellaApi.FireClientPublish(_profileId, raw, now, ir);
+            else Meters.Registry.SetMeter(_profileId, raw, now, ir);
         }
 
         void LogStats(float now)

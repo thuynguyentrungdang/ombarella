@@ -131,6 +131,19 @@ public class CoreTests
     }
 
     [Fact]
+    public void Registry_IrFlag_RoundTripsAndClears()
+    {
+        var r = new VisibilityRegistry();
+        r.Track("p");
+        Assert.False(r.IrLit("p"));
+        r.SetMeter("p", 0.2f, 1f, true);
+        Assert.True(r.IrLit("p"));
+        r.SetMeter("p", 0.2f, 2f);          // next report without IR clears it
+        Assert.False(r.IrLit("p"));
+        Assert.False(r.IrLit("bot"));       // untracked
+    }
+
+    [Fact]
     public void Registry_Observe_Untrack_Grow()
     {
         var r = new VisibilityRegistry();

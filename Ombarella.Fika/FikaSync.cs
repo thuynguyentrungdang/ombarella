@@ -16,7 +16,7 @@ namespace ombarella.FikaSupport
         const float MinChange = 0.01f;
 
         static float _firstProbe = -1f, _lastSend = float.NegativeInfinity, _lastValue = -1f;
-        static bool _gaveUp;
+        static bool _gaveUp, _lastIr;
         internal static bool AckReceived;
         internal static bool RemoteDemand = true;
 
@@ -37,7 +37,7 @@ namespace ombarella.FikaSupport
 
         internal static void ResetRaid()
         {
-            _firstProbe = -1f; _lastSend = float.NegativeInfinity; _lastValue = -1f; _gaveUp = false; AckReceived = false; RemoteDemand = true;
+            _firstProbe = -1f; _lastSend = float.NegativeInfinity; _lastValue = -1f; _lastIr = false; _gaveUp = false; AckReceived = false; RemoteDemand = true;
             try { FikaNet.Reset(); } catch (Exception) { }
         }
 
@@ -50,7 +50,7 @@ namespace ombarella.FikaSupport
         }
 
         /// <summary>Client: send meter on change or keepalive. Probes for a host that has Ombarella.Fika; gives up quietly if none answers.</summary>
-        internal static void ClientPublish(string profileId, float meter, float now)
+        internal static void ClientPublish(string profileId, float meter, float now, bool ir)
         {
             if (_gaveUp || string.IsNullOrEmpty(profileId)) return;
 
@@ -66,15 +66,16 @@ namespace ombarella.FikaSupport
                 }
                 if (now - _lastSend < ProbeRetrySeconds) return;
             }
-            else if (Math.Abs(meter - _lastValue) < MinChange && now - _lastSend < KeepaliveSeconds)
+            else if (ir == _lastIr && Math.Abs(meter - _lastValue) < MinChange && now - _lastSend < KeepaliveSeconds)
             {
                 return;
             }
 
-            if (FikaNet.SendMeter(profileId, meter))
+            if (FikaNet.SendMeter(profileId, meter, ir))
             {
                 _lastSend = now;
                 _lastValue = meter;
+                _lastIr = ir;
             }
         }
     }

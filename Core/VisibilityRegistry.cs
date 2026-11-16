@@ -18,6 +18,7 @@ namespace ombarella.Core
             public float Raw = 1f;
             public float UpdatedAt = float.NegativeInfinity;
             public float DemandAt = float.NegativeInfinity;
+            public bool Ir; // target's IR light is on: only NVG bots see it
         }
 
         Entry[] _entries = new Entry[8];
@@ -63,14 +64,22 @@ namespace ombarella.Core
         }
 
         /// <summary>Validated write. False for untracked id or non-finite value.</summary>
-        public bool SetMeter(string id, float raw, float now)
+        public bool SetMeter(string id, float raw, float now, bool ir = false)
         {
             if (float.IsNaN(raw) || float.IsInfinity(raw)) return false;
             Entry e = Find(id);
             if (e == null) return false;
             e.Raw = raw < 0.01f ? 0.01f : (raw > 1f ? 1f : raw);
+            e.Ir = ir;
             e.UpdatedAt = now;
             return true;
+        }
+
+        /// <summary>True when the id's last meter report had an IR light on. Call only after Observe said fresh.</summary>
+        public bool IrLit(string id)
+        {
+            Entry e = Find(id);
+            return e != null && e.Ir;
         }
 
         /// <summary>Hot path (bot patches). False = no fresh meter, caller keeps vanilla.</summary>

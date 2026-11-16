@@ -32,8 +32,12 @@ namespace ombarella
             if (!__instance.IsVisible) Meters.Registry.MarkDemand(id, now); // not yet detected: light is worth measuring
             if (!fresh) return;
 
+            // target's IR light is lit up for NVG bots only: no darkness slowdown for them. Others keep the normal meter.
+            bool nvg = __instance.HaveNightVision();
+            if (nvg && Meters.Registry.IrLit(id)) return;
+
             __result *= MeterMath.VisionSpeed(raw, OmbarellaConfig.VisionCurveExponent.Value, OmbarellaConfig.Strength,
-                __instance.HaveNightVision(), __instance.Distance, OmbarellaConfig.VisionRampNear.Value, OmbarellaConfig.VisionRampFar.Value);
+                nvg, __instance.Distance, OmbarellaConfig.VisionRampNear.Value, OmbarellaConfig.VisionRampFar.Value);
         }
     }
 }

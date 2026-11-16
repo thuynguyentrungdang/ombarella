@@ -32,6 +32,7 @@ namespace ombarella
 
             float raw;
             if (!Meters.Registry.TryGetRaw(goal.ProfileId, Meters.Now, out raw)) return;
+            if (goal.HaveNightVision() && Meters.Registry.IrLit(goal.ProfileId)) return; // target's IR light: NVG bot sees it lit
 
             float final = MeterMath.Attenuate(raw, OmbarellaConfig.Strength);
             float scale = MeterMath.AimOffsetScale(final, OmbarellaConfig.AimNerfValue);

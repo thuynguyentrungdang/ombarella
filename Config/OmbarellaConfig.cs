@@ -35,7 +35,7 @@ namespace ombarella
             MeterFontSize = F(c, 18f, "a - Toggles", "Meter font size", "Font size of the light meter and debug text", 8f, 48f);
             OnDemandSampling = B(c, true, "a - Toggles", "On-demand sampling", "Only render light samples while a bot is looking at a player it has not detected yet. Saves performance when no bot is watching; the meter holds its last value meanwhile.");
 
-            SamplesPerSec = F(c, 1f, "b - Main Settings", "1-Light samples per second", "Main throttle of the mod; higher = more accurate reading / less perf", 1f, 60f);
+            SamplesPerSec = F(c, 8f, "b - Main Settings", "1-Light samples per second", "Main throttle of the mod; higher = more accurate reading / less perf", 1f, 60f);
             MeterAverageSamples = F(c, 15f, "b - Main Settings", "2-Light meter average samples", "Number of valid light samples to average before applying the result. Higher values smooth noisy orbit sampling.", 1f, 600f);
             MeterAttenuationCoef = F(c, 1f, "b - Main Settings", "3-Light meter strength", "Determines how quickly bots can spot you per your visiblity level (100% = bots get full effect, slower recognition time). In Fika the host/headless value applies.", 0f, 1f);
             AimNerf = F(c, 0.03f, "b - Main Settings", "4-Bot aim handicap", "Extra aim spread for bots when you are in the dark (higher = worse bot aim in low light; zero = no penalty). Bright light leaves bot aim untouched. In Fika the host/headless value applies.", 0f, 0.1f);
@@ -45,7 +45,7 @@ namespace ombarella
             VisionRampFar = F(c, 30f, "b - Main Settings", "7-Darkness full effect (m)", "Bots this far or farther get the full light meter effect; fades in linearly from the start distance.", 1f, 200f);
             CameraFOV = F(c, 30f, "c - Advanced Settings", "CameraFOV", "Size of light camera FOV", 10f, 170f);
             UseEftAmbient = B(c, true, "c - Advanced Settings", "Use EFT sky ambient", "Attaches EFT's own ambient-light pass to the light camera. Without it only lamps light the frame and outdoor daylight reads near zero. Turn off if it causes rendering problems.");
-            Exposure = F(c, 2f, "c - Advanced Settings", "Exposure (EV)", "Stops applied to the raw light-camera image before scoring, clipped at white like a camera (+2 = 4x). The raw render is dark. Raise if bright days score low, lower if dark interiors score high.", -4f, 8f);
+            Exposure = F(c, 1.8f, "c - Advanced Settings", "Exposure (EV)", "Stops applied to the raw light-camera image before scoring, clipped at white like a camera (+2 = 4x). The raw render is dark. Raise if bright days score low, lower if dark interiors score high.", -4f, 8f);
             RenderTextureResolution = F(c, 64f, "c - Advanced Settings", "Render texture resolution", "Resolution of the light camera render texture. Applied before raid start and rounded to the nearest multiple of 8.", 16f, 512f);
             UseAsyncGPUReadback = B(c, true, "c - Advanced Settings", "Use async GPU readback", "Avoids blocking the main thread while reading the light camera texture. Disable to use a blocking readback.");
             ExcludeSky = B(c, true, "c - Advanced Settings", "Exclude sky dome", "Hides EFT's sky dome renderers while the light camera renders. The dome ignores the far plane and drew white at night, inflating the score.");

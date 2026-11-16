@@ -227,6 +227,7 @@ namespace ombarella
                 RedColorDepthMulti = OmbarellaConfig.RedColorDepthMulti.Value,
                 GreenColorDepthMulti = OmbarellaConfig.GreenColorDepthMulti.Value,
                 BlueColorDepthMulti = OmbarellaConfig.BlueColorDepthMulti.Value,
+                DepthWeight = OmbarellaConfig.ColorDepthWeight.Value,
                 IgnoreTransparentPixels = OmbarellaConfig.IgnoreTransparentPixels.Value
             };
         }

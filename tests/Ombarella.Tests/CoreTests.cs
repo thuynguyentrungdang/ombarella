@@ -7,6 +7,7 @@ public class CoreTests
     {
         LumaCoef = 1f, RedLumaMulti = 1f, GreenLumaMulti = 1f, BlueLumaMulti = 1f,
         RedColorDepthMulti = 1f, GreenColorDepthMulti = 1f, BlueColorDepthMulti = 1f,
+        DepthWeight = 0.5f,
         IgnoreTransparentPixels = ignoreClear
     };
 
@@ -19,11 +20,25 @@ public class CoreTests
     [Fact]
     public void Score_ClearPixelsIgnored_OnlyOpaqueCount()
     {
-        // one white opaque + one black clear. Luma = (255*3)/(255*1) = 3 -> clamp 1. depth = 0. score = 0.5
+        // one white opaque + one black clear. Luma = (255*3)/(255*1) = 3 -> clamp 1. depth = 0. whiteout reaches 1.0
         Assert.True(ScoreCalculator.TryCalculate(new byte[] { 255, 255, 255, 255, 0, 0, 0, 0 }, S(), out float score, out float luma, out float cd));
         Assert.Equal(1f, luma);
         Assert.Equal(0f, cd);
-        Assert.Equal(0.5f, score, 3);
+        Assert.Equal(1f, score, 3);
+    }
+
+    [Fact]
+    public void Score_DepthIsAdditiveBonus()
+    {
+        // opaque black + opaque (60,60,60): mean luma = 3*60/(255*2) = 0.353; depth = 60*3/(255*3) = 0.235; score = luma + 0.5*depth
+        var px = new byte[] { 0, 0, 0, 255, 60, 60, 60, 255 };
+        Assert.True(ScoreCalculator.TryCalculate(px, S(), out float score, out float luma, out float cd));
+        Assert.Equal(0.353f, luma, 3);
+        Assert.Equal(0.235f, cd, 3);
+        Assert.Equal(0.4706f, score, 3);
+        var s0 = S(); s0.DepthWeight = 0f;
+        Assert.True(ScoreCalculator.TryCalculate(px, s0, out score, out _, out _));
+        Assert.Equal(0.353f, score, 3);
     }
 
     [Fact]

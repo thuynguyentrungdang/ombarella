@@ -8,6 +8,7 @@ namespace ombarella.Core
         public float LumaCoef;
         public float RedLumaMulti, GreenLumaMulti, BlueLumaMulti;
         public float RedColorDepthMulti, GreenColorDepthMulti, BlueColorDepthMulti;
+        public float DepthWeight; // score = luma + DepthWeight * colorDepth, clamped
         public bool IgnoreTransparentPixels;
     }
 
@@ -47,7 +48,7 @@ namespace ombarella.Core
 
             luma = Clamp01(l * s.LumaCoef);
             colorDepth = Clamp01(cd);
-            score = Clamp((luma + colorDepth) * 0.5f, MinScore, 1f);
+            score = Clamp(luma + colorDepth * s.DepthWeight, MinScore, 1f);
             return true;
         }
 

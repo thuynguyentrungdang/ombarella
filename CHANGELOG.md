@@ -6,5 +6,6 @@
 - Natural daylight now counts: EFT's own ambient pass is attached to the light camera (previously only lamps lit the frame).
 - Sky dome hidden from the meter render; steeper, closer orbit defaults (less sky in frame).
 - Bot vision speed uses a power curve (default meter^0.5) with a distance fade (5 m none, 30 m full) instead of linear; NVG bots keep their blend.
+- Score is now brightness + weighted color depth, capped at 1 (was averaged, which capped a whiteout at 0.5). New config "Color depth weight" (default 0.5).
 - New config: Exposure (EV), Use EFT sky ambient, Darkness curve exponent, Darkness effect start/full distance.
 - SPT 4.1 port with Fika sync add-on, on-demand sampling and perf rework (earlier commits on this branch).

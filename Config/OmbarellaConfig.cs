@@ -11,7 +11,7 @@ namespace ombarella
         public static ConfigEntry<float> CameraFOV, Exposure, RenderTextureResolution, VisionCurveExponent, VisionRampNear, VisionRampFar;
         public static ConfigEntry<bool> UseAsyncGPUReadback, IgnoreTransparentPixels, ExcludeSky, UseEftAmbient;
         public static ConfigEntry<float> RedLumaMulti, GreenLumaMulti, BlueLumaMulti;
-        public static ConfigEntry<float> RedColorDepthMulti, GreenColorDepthMulti, BlueColorDepthMulti;
+        public static ConfigEntry<float> RedColorDepthMulti, GreenColorDepthMulti, BlueColorDepthMulti, ColorDepthWeight;
         public static ConfigEntry<float> CamHorizontalOffset, CameraFocusHeightOffset, OrbitCameraRadius, OrbitCameraHeightOffset;
         public static ConfigEntry<HudAnchor> MeterAnchor;
         public static ConfigEntry<float> MeterOffsetX, MeterOffsetY, MeterFontSize;
@@ -57,6 +57,7 @@ namespace ombarella
             RedColorDepthMulti = F(c, 0.79f, "d - Color Settings", "4-Red color depth multi", "Red color range in pixel analysis is multiplied by this to produce the color depth calculation", 0f, 1f);
             GreenColorDepthMulti = F(c, 0.29f, "d - Color Settings", "5-Green color depth multi", "Green color range in pixel analysis is multiplied by this to produce the color depth calculation", 0f, 1f);
             BlueColorDepthMulti = F(c, 0.93f, "d - Color Settings", "6-Blue color depth multi", "Blue color range in pixel analysis is multiplied by this to produce the color depth calculation", 0f, 1f);
+            ColorDepthWeight = F(c, 0.5f, "d - Color Settings", "7-Color depth weight", "Score = brightness + this x color depth (contrast stand-in for camo), capped at 1. 0 = brightness only. Guess default.", 0f, 1f);
 
             CamHorizontalOffset = F(c, 4f, "e - Camera Rig Settings", "Camera horizontal offset", "Distance between the camera and the player focus point on horizontal plane", 0.1f, 5f);
             CameraFocusHeightOffset = F(c, -0.7f, "e - Camera Rig Settings", "Camera focus height offset", "Vertical offset from the player's ribcage bone. Negative values focus lower on the chest.", -1f, 1f);

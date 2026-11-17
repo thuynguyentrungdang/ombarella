@@ -42,6 +42,7 @@ namespace ombarella.FikaSupport
         static object _server, _client;
         static readonly Dictionary<string, Remote> Remotes = new Dictionary<string, Remote>(StringComparer.Ordinal);
         static readonly List<string> Scratch = new List<string>();
+        static int _rejectLogs; static bool _loggedAccept; // diagnostics, per raid
 
 
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -90,6 +91,7 @@ namespace ombarella.FikaSupport
         internal static void Reset()
         {
             Remotes.Clear();
+            _rejectLogs = 0; _loggedAccept = false;
             FikaSync.AckReceived = false;
             FikaSync.RemoteDemand = true;
         }
@@ -126,7 +128,21 @@ namespace ombarella.FikaSupport
         {
             try
             {
-                if (p == null || !IsRemoteHuman(p.ProfileId)) return;
+                if (p == null) return;
+                if (!IsRemoteHuman(p.ProfileId))
+                {
+                    if (_rejectLogs < 5) { _rejectLogs++; OmbarellaFikaPlugin.Log.LogInfo("[fika] meter packet rejected: id " + p.ProfileId + " not a live remote human (alive list " + Utils.GetAllPlayers().Count + ")"); }
+                    // Host's player list fills after the client's raid starts. Ack anyway ("Ombarella is here") so the client
+                    // does not give up before it is known; its next change/keepalive packet is accepted. Nothing is stored.
+                    FikaServer early = _server as FikaServer;
+                    if (early != null && peer != null)
+                    {
+                        var ack = new OmbDemandPacket { Demand = true };
+                        early.SendDataToPeer(ref ack, DeliveryMethod.ReliableOrdered, peer);
+                    }
+                    return;
+                }
+                if (!_loggedAccept) { _loggedAccept = true; OmbarellaFikaPlugin.Log.LogInfo("[fika] first meter packet accepted from " + p.ProfileId); }
                 Meters.Registry.Track(p.ProfileId);
                 Meters.Registry.SetMeter(p.ProfileId, p.Meter, Time.time, p.IrLight);
 

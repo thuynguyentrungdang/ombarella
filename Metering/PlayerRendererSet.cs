@@ -28,6 +28,11 @@ namespace ombarella
         ShadowCastingMode[] _shadow = Array.Empty<ShadowCastingMode>();
         bool[] _offscreen = Array.Empty<bool>();
         bool _applied;
+        public int Count { get { return _all.Length; } }
+        // diagnostics: full rebuilds since last ResetStats (a rebuild every sample = hands/renderers churn)
+        public int RebuildCount;
+        public double RebuildMs;
+        public void ResetStats() { RebuildCount = 0; RebuildMs = 0; }
 
         static readonly string[] OpticTokens =
         {
@@ -45,6 +50,7 @@ namespace ombarella
             if (_owner == player && _excludeOptics == excludeOptics && _handsId == handsId && !HasNull())
                 return _all.Length > 0;
 
+            long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
             _owner = player;
             _excludeOptics = excludeOptics;
             _handsId = handsId;
@@ -66,6 +72,8 @@ namespace ombarella
                 if (excludeOptics)
                     _hide[i] = (sightRenderers != null && sightRenderers.Contains(r)) || LooksLikeOptic(r);
             }
+            RebuildCount++;
+            RebuildMs += (System.Diagnostics.Stopwatch.GetTimestamp() - t0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
             return n > 0;
         }
 

@@ -50,7 +50,12 @@ namespace ombarella
             if (Singleton<AbstractGame>.Instantiated && Singleton<AbstractGame>.Instance != null && Singleton<AbstractGame>.Instance.InRaid)
                 return true;
             GameWorld world = Singleton<GameWorld>.Instance;
-            return world != null && world.MainPlayer != null;
+            if (world == null) return false;
+            if (world.MainPlayer != null) return true;
+            // Fika headless host: HeadlessGame is neither INetworkGame nor LocalGame (InRaid false, probe-verified) and it has
+            // no MainPlayer, but its world holds the raid's players.
+            return Singleton<AbstractGame>.Instantiated && Singleton<AbstractGame>.Instance != null
+                && world.AllAlivePlayersList != null && world.AllAlivePlayersList.Count > 0;
         }
 
         /// <summary>Throttled debug log. Callers should pre-check IsDebug before building the string.</summary>

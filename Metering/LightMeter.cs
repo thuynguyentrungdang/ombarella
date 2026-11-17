@@ -44,6 +44,27 @@ namespace ombarella
         public int StatSamples;
         public double StatTotalMs;
         public double StatMaxMs;
+        // phase split of the sample cost (diagnostic): position+raycast, renderer set+sky, camera render, readback request
+        public double StatPosMs, StatSetMs, StatRenderMs, StatMaxRenderMs;
+        // cold = first render after a >2 s pause (cold-path hypothesis); slow = render over 30 ms
+        public double StatColdMs; public int StatColdN, StatSlow;
+        // extra phases: EFT ambient hook, readback request call, readback callback (exposure+score+average)
+        public double StatAmbientMs, StatReqMs, StatAcceptMs; public int StatAccepts;
+        public int RendererRebuilds { get { return _renderers.RebuildCount; } }
+        public double RendererRebuildMs { get { return _renderers.RebuildMs; } }
+        public int SkyScans { get { return _sky.ScanCount; } }
+        public int SkyScanRenderers { get { return _sky.ScanRenderers; } }
+        public double SkyScanMs { get { return _sky.ScanMs; } }
+        public double SkyScanMaxMs { get { return _sky.ScanMaxMs; } }
+        float _lastSampleAt = -100f;
+
+        /// <summary>One-line camera + player renderer facts for the environment log.</summary>
+        public string CameraInfo()
+        {
+            if (_cam == null) return "no camera";
+            return "path " + _cam.actualRenderingPath + ", hdr " + _cam.allowHDR + ", occlusion " + _cam.useOcclusionCulling +
+                   ", rt " + _texSize + "px, player renderers " + _renderers.Count;
+        }
 
         public LightMeter(GameObject host)
         {
@@ -78,7 +99,7 @@ namespace ombarella
         /// <summary>Drop averaging history, keep last published value (used after idle).</summary>
         public void ResetAverageKeepValue() { _averager.Clear(); }
 
-        public void ResetStats() { StatSamples = 0; StatTotalMs = 0; StatMaxMs = 0; }
+        public void ResetStats() { StatSamples = 0; StatTotalMs = 0; StatMaxMs = 0; StatPosMs = 0; StatSetMs = 0; StatRenderMs = 0; StatMaxRenderMs = 0; StatColdMs = 0; StatColdN = 0; StatSlow = 0; StatAmbientMs = 0; StatReqMs = 0; StatAcceptMs = 0; StatAccepts = 0; _renderers.ResetStats(); _sky.ResetStats(); }
 
         public void ReleaseTarget() { _renderers.Clear(); }
 
@@ -104,6 +125,7 @@ namespace ombarella
             _cam.enabled = false;
             ApplyCameraSettings();
             CameraRig.Initialize(_cam);
+            Plugin.Log.LogInfo("[meter] camera type " + _cam.cameraType + ", " + size + " px");
         }
 
         static int ConfiguredSize()
@@ -141,6 +163,12 @@ namespace ombarella
             _cam.clearFlags = CameraClearFlags.SolidColor;
             _cam.backgroundColor = new Color(0f, 0f, 0f, 0f);
             _cam.cullingMask = -1;
+            // FuckThisCulling (Hi-Z) treats every non-main CameraType.Game camera as "other camera": on each of its PreCull it runs
+            // RestoreAll() on all geometry it hid, then re-hides it for the gameplay camera afterwards. Log-verified in one raid:
+            // camera render 2-3 ms with Hi-Z off, 5-14 ms with Hi-Z on (restore runs inside Render), plus re-hide churn on the main camera.
+            // It skips cameras whose cameraType != Game, so we declare ours a Reflection camera (a public, documented API; no reflection into the mod).
+            // Trade: with Hi-Z on, geometry it hid for the main view stays hidden in our render too (some off-view shadow casters/background missing).
+            _cam.cameraType = CameraType.Reflection;
             _cam.renderingPath = RenderingPath.UsePlayerSettings;
             // HDR on: with LDR (false) the deferred light buffer is log-encoded and every empty pixel resolves white,
             // ignoring the clear color (dump-verified; forward and HDR-deferred both clear correctly).
@@ -164,6 +192,9 @@ namespace ombarella
         /// Position camera, render target, start readback. Returns false when nothing rendered
         /// (readback already in flight, bad geometry, occluded).
         /// </summary>
+        /// <summary>Diagnostics: shadow distance actually in effect during the last meter render (after clamp).</summary>
+        public float LastRenderShadowDist;
+
         public bool Sample(Player target, List<Player> observers)
         {
             if (_pending || _disposed || _suspended) return false;
@@ -172,24 +203,42 @@ namespace ombarella
 
             _watch.Restart();
             if (!PositionCamera(target, observers)) return false;
+            double t0 = _watch.Elapsed.TotalMilliseconds;
             if (!_renderers.Refresh(target, OmbarellaConfig.ExcludeOpticRenderers.Value)) return false;
 
+            double ta = _watch.Elapsed.TotalMilliseconds;
             RegisterEftAmbient();
+            StatAmbientMs += _watch.Elapsed.TotalMilliseconds - ta;
             _renderers.Apply(OmbarellaConfig.ForceTargetPlayerRenderers.Value);
             if (OmbarellaConfig.ExcludeSky.Value) _sky.Hide();
             if (OmbarellaConfig.DumpRenderTexture.Value) ProbeFrustum();
+            double t1 = _watch.Elapsed.TotalMilliseconds;
+            // Shadows stay on, but the global shadow distance (40 in EFT, cascades span it) only needs to reach our far plane:
+            // anything past it is never in frame. Smaller cascades = less shadow-map work per sample. Restored right after.
+            float prevShadowDist = QualitySettings.shadowDistance;
+            if (prevShadowDist > _cam.farClipPlane) QualitySettings.shadowDistance = _cam.farClipPlane;
+            LastRenderShadowDist = QualitySettings.shadowDistance;
             try
             {
                 _cam.Render();
                 if (OmbarellaConfig.DumpRenderTexture.Value) DumpVariants();
             }
-            finally { _sky.Restore(); _renderers.Restore(); }
+            finally { QualitySettings.shadowDistance = prevShadowDist; _sky.Restore(); _renderers.Restore(); }
+            double t2 = _watch.Elapsed.TotalMilliseconds;
+            StatPosMs += t0; StatSetMs += t1 - t0; StatRenderMs += t2 - t1;
+            if (t2 - t1 > StatMaxRenderMs) StatMaxRenderMs = t2 - t1;
+            float at = Time.unscaledTime;
+            if (at - _lastSampleAt > 2f) { StatColdN++; StatColdMs += t2 - t1; }
+            _lastSampleAt = at;
+            if (t2 - t1 > 30.0) StatSlow++;
 
             _pendingSettings = CaptureSettings();
             if (OmbarellaConfig.UseAsyncGPUReadback.Value && SystemInfo.supportsAsyncGPUReadback)
             {
                 _pending = true;
+                double tr = _watch.Elapsed.TotalMilliseconds;
                 AsyncGPUReadback.Request(_rt, 0, TextureFormat.RGBA32, _onReadback);
+                StatReqMs += _watch.Elapsed.TotalMilliseconds - tr;
                 _watch.Stop();
             }
             else
@@ -518,6 +567,17 @@ namespace ombarella
         }
 
         void Accept(ReadOnlySpan<byte> raw)
+        {
+            long tacc = System.Diagnostics.Stopwatch.GetTimestamp();
+            try { AcceptCore(raw); }
+            finally
+            {
+                StatAcceptMs += (System.Diagnostics.Stopwatch.GetTimestamp() - tacc) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+                StatAccepts++;
+            }
+        }
+
+        void AcceptCore(ReadOnlySpan<byte> raw)
         {
             if (OmbarellaConfig.DumpRenderTexture.Value) DumpFrame(raw); // raw, pre-exposure
             if (_exposed == null || _exposed.Length != raw.Length) _exposed = new byte[raw.Length];

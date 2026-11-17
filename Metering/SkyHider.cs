@@ -66,10 +66,25 @@ namespace ombarella
             return _hiddenDecals.Count;
         }
 
+        // diagnostics: decal scans since last ResetStats
+        public int ScanCount, ScanRenderers;
+        public double ScanMs, ScanMaxMs;
+        public void ResetStats() { ScanCount = 0; ScanRenderers = 0; ScanMs = 0; ScanMaxMs = 0; }
+
         void ScanDecals()
+        {
+            long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+            ScanDecalsCore();
+            double ms = (System.Diagnostics.Stopwatch.GetTimestamp() - t0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            ScanCount++; ScanMs += ms;
+            if (ms > ScanMaxMs) ScanMaxMs = ms;
+        }
+
+        void ScanDecalsCore()
         {
             _decals.Clear();
             Renderer[] all = Object.FindObjectsOfType<Renderer>();
+            ScanRenderers = all.Length;
             for (int i = 0; i < all.Length; i++)
             {
                 Renderer r = all[i];

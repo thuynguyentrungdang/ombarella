@@ -41,8 +41,8 @@ namespace ombarella.FikaSupport
             try { FikaNet.Reset(); } catch (Exception) { }
         }
 
-        /// <summary>Client: false when host reports no bot is watching (sampling can pause).</summary>
-        internal static bool ClientShouldSample() { return RemoteDemand; }
+        /// <summary>Client: false when host reports no bot is watching, or when host never answered (nobody consumes the value, rendering is pure cost).</summary>
+        internal static bool ClientShouldSample() { return RemoteDemand && !_gaveUp; }
 
         internal static void HostTick(float now)
         {

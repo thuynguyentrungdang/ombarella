@@ -36,7 +36,7 @@ namespace ombarella
             bool nvg = __instance.HaveNightVision();
             if (nvg && Meters.Registry.IrLit(id)) return;
 
-            __result *= MeterMath.VisionSpeed(raw, OmbarellaConfig.VisionCurveExponent.Value, OmbarellaConfig.Strength,
+            __result *= MeterMath.VisionSpeed(OmbarellaConfig.Shape(raw),OmbarellaConfig.VisionCurveExponent.Value, OmbarellaConfig.Strength,
                 nvg, __instance.Distance, OmbarellaConfig.VisionRampNear.Value, OmbarellaConfig.VisionRampFar.Value);
         }
     }

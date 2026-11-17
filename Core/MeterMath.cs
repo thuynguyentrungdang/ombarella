@@ -2,6 +2,19 @@ namespace ombarella.Core
 {
     public static class MeterMath
     {
+        /// <summary>
+        /// Extremes curve: identity inside [lo, hi]; past an edge the score is pushed further out, quadratically
+        /// (s + k*(s-hi)^2 above, s - k*(lo-s)^2 below), clamped to [0.01, 1]. Slope is 1 at both edges (no kink).
+        /// k = 0 = identity.
+        /// </summary>
+        public static float Curve(float raw, float lo, float hi, float k)
+        {
+            float v = raw;
+            if (v > hi) { float d = v - hi; v += k * d * d; }
+            else if (v < lo) { float d = lo - v; v -= k * d * d; }
+            return v < 0.01f ? 0.01f : (v > 1f ? 1f : v);
+        }
+
         /// <summary>strength 1 = raw meter, 0 = neutral (1).</summary>
         public static float Attenuate(float raw, float strength)
         {

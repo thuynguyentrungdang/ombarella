@@ -34,7 +34,7 @@ namespace ombarella
             if (!Meters.Registry.TryGetRaw(goal.ProfileId, Meters.Now, out raw)) return;
             if (goal.HaveNightVision() && Meters.Registry.IrLit(goal.ProfileId)) return; // target's IR light: NVG bot sees it lit
 
-            float final = MeterMath.Attenuate(raw, OmbarellaConfig.Strength);
+            float final = MeterMath.Attenuate(OmbarellaConfig.Shape(raw), OmbarellaConfig.Strength);
             float scale = MeterMath.AimOffsetScale(final, OmbarellaConfig.AimNerfValue);
             if (scale <= 0f) return; // bright (or AimNerf 0): vanilla/SAIN end point untouched
             // add the dark penalty on top of whatever vanilla (and SAIN's own patches) produced

@@ -122,6 +122,22 @@ public class CoreTests
     }
 
     [Fact]
+    public void Curve_LinearInBandPushesEndsAndClamps()
+    {
+        Assert.Equal(0.5f, MeterMath.Curve(0.5f, 0.3f, 0.7f, 2f), 5);
+        Assert.Equal(0.3f, MeterMath.Curve(0.3f, 0.3f, 0.7f, 2f), 5);   // edges continuous
+        Assert.Equal(0.7f, MeterMath.Curve(0.7f, 0.3f, 0.7f, 2f), 5);
+        Assert.Equal(0.82f, MeterMath.Curve(0.8f, 0.3f, 0.7f, 2f), 5);
+        Assert.Equal(0.98f, MeterMath.Curve(0.9f, 0.3f, 0.7f, 2f), 5);
+        Assert.Equal(1f, MeterMath.Curve(1f, 0.3f, 0.7f, 2f), 5);       // clamp
+        Assert.Equal(0.18f, MeterMath.Curve(0.2f, 0.3f, 0.7f, 2f), 5);
+        Assert.Equal(0.02f, MeterMath.Curve(0.1f, 0.3f, 0.7f, 2f), 5);
+        Assert.Equal(0.01f, MeterMath.Curve(0.05f, 0.3f, 0.7f, 2f), 5); // floor
+        Assert.Equal(0.9f, MeterMath.Curve(0.9f, 0.3f, 0.7f, 0f), 5);   // k=0 identity
+        Assert.Equal(0.9f, MeterMath.Curve(0.9f, 0.3f, 1f, 2f), 5);     // bright side off
+    }
+
+    [Fact]
     public void Registry_ClampsRejectsNanAndGoesStale()
     {
         var r = new VisibilityRegistry();

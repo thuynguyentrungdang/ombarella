@@ -294,7 +294,7 @@ namespace ombarella
                 BlueColorDepthMulti = OmbarellaConfig.BlueColorDepthMulti.Value,
                 DepthWeight = OmbarellaConfig.ColorDepthWeight.Value,
                 IgnoreTransparentPixels = OmbarellaConfig.IgnoreTransparentPixels.Value,
-                CenterFocus = OmbarellaConfig.CenterFocus.Value,
+                CenterFocus = OmbarellaConfig.CenterWeightEnabled.Value ? OmbarellaConfig.CenterFocus.Value : 0f,
                 CenterSigma = OmbarellaConfig.CenterWidth.Value
             };
         }

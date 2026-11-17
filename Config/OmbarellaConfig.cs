@@ -11,7 +11,11 @@ namespace ombarella
         public static ConfigEntry<float> CameraFOV, Exposure, RenderTextureResolution, VisionCurveExponent, VisionRampNear, VisionRampFar;
         public static ConfigEntry<bool> UseAsyncGPUReadback, IgnoreTransparentPixels, ExcludeSky, UseEftAmbient;
         public static ConfigEntry<float> RedLumaMulti, GreenLumaMulti, BlueLumaMulti;
-        public static ConfigEntry<float> RedColorDepthMulti, GreenColorDepthMulti, BlueColorDepthMulti, ColorDepthWeight, CenterFocus, CenterWidth;
+        public static ConfigEntry<float> RedColorDepthMulti, GreenColorDepthMulti, BlueColorDepthMulti, ColorDepthWeight, CenterFocus, CenterWidth, CurveLow, CurveHigh, CurveStrength;
+        public static ConfigEntry<bool> CenterWeightEnabled, CurveEnabled;
+        // Hot-path copies (bot patches read these per bot per enemy): refreshed on change.
+        public static bool CurveOn;
+        public static float CurveLo = 0.3f, CurveHi = 1f, CurveK = 2f;
         public static ConfigEntry<float> CamHorizontalOffset, CameraFocusHeightOffset, OrbitCameraRadius, OrbitCameraHeightOffset;
         public static ConfigEntry<HudAnchor> MeterAnchor;
         public static ConfigEntry<float> MeterOffsetX, MeterOffsetY, MeterFontSize;
@@ -58,8 +62,14 @@ namespace ombarella
             GreenColorDepthMulti = F(c, 0.29f, "d - Color Settings", "5-Green color depth multi", "Green color range in pixel analysis is multiplied by this to produce the color depth calculation", 0f, 1f);
             BlueColorDepthMulti = F(c, 0.93f, "d - Color Settings", "6-Blue color depth multi", "Blue color range in pixel analysis is multiplied by this to produce the color depth calculation", 0f, 1f);
             ColorDepthWeight = F(c, 0.5f, "d - Color Settings", "7-Color depth weight", "Score = brightness + this x color depth (contrast stand-in for camo), capped at 1. 0 = brightness only. Guess default.", 0f, 1f);
-            CenterFocus = F(c, 0.8f, "d - Color Settings", "8-Center focus", "Weights pixels near the frame centre (where the player is) more than the edges, so far background lights count less. 0 = whole frame equal (old behaviour), 1 = edges ignored. Also limits color depth to the central area. Changes the overall scale: retune Exposure after. Guess default.", 0f, 1f);
-            CenterWidth = F(c, 0.35f, "d - Color Settings", "9-Center width", "Size of the centre-weighted area as a fraction of the half-frame (gaussian sigma). Smaller = tighter on the player. Guess default.", 0.1f, 1f);
+            CenterWeightEnabled = B(c, true, "d - Color Settings", "8-Center weighting", "On: pixels near the frame centre (the player) count more than the edges. Off: whole frame equal (old behaviour). Changes the overall scale: retune Exposure after switching.");
+            CenterFocus = F(c, 0.8f, "d - Color Settings", "8b-Center focus", "Weights pixels near the frame centre (where the player is) more than the edges, so far background lights count less. 0 = whole frame equal (old behaviour), 1 = edges ignored. Also limits color depth to the central area. Changes the overall scale: retune Exposure after. Guess default.", 0f, 1f);
+            CenterWidth = F(c, 0.35f, "d - Color Settings", "8c-Center width", "Size of the centre-weighted area as a fraction of the half-frame (gaussian sigma). Smaller = tighter on the player. Guess default.", 0.1f, 1f);
+
+            CurveEnabled = B(c, false, "b - Main Settings", "6-Extremes curve", "On: scores near the dark or bright end are pushed further out (darker nights read darker, very bright reads brighter); the middle band stays linear. Applied when bots read the meter, not to the stored average. In Fika the host/headless value applies.");
+            CurveLow = F(c, 0.3f, "b - Main Settings", "6b-Curve dark edge", "Scores below this get pushed lower. Guess default.", 0f, 0.5f);
+            CurveHigh = F(c, 1f, "b - Main Settings", "6c-Curve bright edge", "Scores above this get pushed higher. 1 = bright side off. Guess default.", 0.5f, 1f);
+            CurveStrength = F(c, 2f, "b - Main Settings", "6d-Curve strength", "How hard the ends are pushed. 0 = none. Guess default.", 0f, 10f);
 
             CamHorizontalOffset = F(c, 4f, "e - Camera Rig Settings", "Camera horizontal offset", "Distance between the camera and the player focus point on horizontal plane", 0.1f, 5f);
             CameraFocusHeightOffset = F(c, -0.7f, "e - Camera Rig Settings", "Camera focus height offset", "Vertical offset from the player's ribcage bone. Negative values focus lower on the chest.", -1f, 1f);
@@ -84,6 +94,16 @@ namespace ombarella
             MasterSwitch.SettingChanged += (s, e) => Refresh();
             MeterAttenuationCoef.SettingChanged += (s, e) => Refresh();
             AimNerf.SettingChanged += (s, e) => Refresh();
+            CurveEnabled.SettingChanged += (s, e) => Refresh();
+            CurveLow.SettingChanged += (s, e) => Refresh();
+            CurveHigh.SettingChanged += (s, e) => Refresh();
+            CurveStrength.SettingChanged += (s, e) => Refresh();
+        }
+
+        /// <summary>Raw meter after the optional extremes curve. Hot path: static fields only.</summary>
+        public static float Shape(float raw)
+        {
+            return CurveOn ? ombarella.Core.MeterMath.Curve(raw, CurveLo, CurveHi, CurveK) : raw;
         }
 
         static void Refresh()
@@ -91,6 +111,10 @@ namespace ombarella
             Enabled = MasterSwitch.Value;
             Strength = MeterAttenuationCoef.Value;
             AimNerfValue = AimNerf.Value;
+            CurveOn = CurveEnabled.Value;
+            CurveLo = CurveLow.Value;
+            CurveHi = CurveHigh.Value;
+            CurveK = CurveStrength.Value;
         }
 
         static void RemoveObsolete(ConfigFile c)

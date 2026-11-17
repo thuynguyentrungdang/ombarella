@@ -411,7 +411,7 @@ namespace ombarella
             _verboseAt = t;
             float now = Time.time;
             float raw = Meters.LocalRaw;
-            float final = MeterMath.Attenuate(raw, OmbarellaConfig.Strength);
+            float final = MeterMath.Attenuate(OmbarellaConfig.Shape(raw), OmbarellaConfig.Strength);
             double avgMs = _meter.StatSamples == 0 ? 0 : _meter.StatTotalMs / _meter.StatSamples;
             _verbose = string.Format(
                 "score {0:F3}  luma {1:F3}  depth {2:F3}\n" +

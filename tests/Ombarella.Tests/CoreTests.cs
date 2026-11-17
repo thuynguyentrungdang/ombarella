@@ -86,6 +86,42 @@ public class CoreTests
     }
 
     [Fact]
+    public void Score_CenterWeightFavoursCentreAndIgnoresCornerRange()
+    {
+        // 8x8: dark centre 2x2, bright everywhere else
+        const int W = 8;
+        var px = new byte[W * W * 4];
+        for (int i = 0; i < W * W; i++)
+        {
+            bool centre = (i % W) >= 3 && (i % W) <= 4 && (i / W) >= 3 && (i / W) <= 4;
+            byte v = centre ? (byte)0 : (byte)255;
+            px[i * 4] = px[i * 4 + 1] = px[i * 4 + 2] = v; px[i * 4 + 3] = 255;
+        }
+        var flat = S(); flat.RedLumaMulti = flat.GreenLumaMulti = flat.BlueLumaMulti = 1f / 3f;
+        var focused = S(); focused.RedLumaMulti = focused.GreenLumaMulti = focused.BlueLumaMulti = 1f / 3f; focused.Width = W; focused.CenterFocus = 1f; focused.CenterSigma = 0.3f;
+        Assert.True(ScoreCalculator.TryCalculate(px, flat, out _, out float lFlat, out _));
+        Assert.True(ScoreCalculator.TryCalculate(px, focused, out _, out float lFocus, out float cdFocus));
+        Assert.True(lFocus < lFlat);          // dark centre counts more
+        Assert.True(cdFocus >= 0f && cdFocus <= 1f);
+
+        // focus 0 or wrong buffer size = identical to uniform
+        var off = S(); off.RedLumaMulti = off.GreenLumaMulti = off.BlueLumaMulti = 1f / 3f; off.Width = W; off.CenterFocus = 0f;
+        Assert.True(ScoreCalculator.TryCalculate(px, off, out _, out float lOff, out _));
+        Assert.Equal(lFlat, lOff, 5);
+        var badWidth = S(); badWidth.RedLumaMulti = badWidth.GreenLumaMulti = badWidth.BlueLumaMulti = 1f / 3f; badWidth.Width = 5; badWidth.CenterFocus = 1f; badWidth.CenterSigma = 0.3f;
+        Assert.True(ScoreCalculator.TryCalculate(px, badWidth, out _, out float lBad, out _));
+        Assert.Equal(lFlat, lBad, 5);
+
+        // lamp only in a corner: range ignored by the disc, so colour depth drops vs uniform
+        var px2 = new byte[W * W * 4];
+        for (int i = 0; i < W * W; i++) px2[i * 4 + 3] = 255;
+        px2[0] = px2[1] = px2[2] = 255;
+        Assert.True(ScoreCalculator.TryCalculate(px2, flat, out _, out _, out float cdFlat));
+        Assert.True(ScoreCalculator.TryCalculate(px2, focused, out _, out _, out float cdCorner));
+        Assert.True(cdFlat > 0f); Assert.Equal(0f, cdCorner, 5);
+    }
+
+    [Fact]
     public void Registry_ClampsRejectsNanAndGoesStale()
     {
         var r = new VisibilityRegistry();

@@ -233,6 +233,7 @@ namespace ombarella
             if (t2 - t1 > 30.0) StatSlow++;
 
             _pendingSettings = CaptureSettings();
+            _pendingSettings.Width = _texSize;
             if (OmbarellaConfig.UseAsyncGPUReadback.Value && SystemInfo.supportsAsyncGPUReadback)
             {
                 _pending = true;
@@ -292,7 +293,9 @@ namespace ombarella
                 GreenColorDepthMulti = OmbarellaConfig.GreenColorDepthMulti.Value,
                 BlueColorDepthMulti = OmbarellaConfig.BlueColorDepthMulti.Value,
                 DepthWeight = OmbarellaConfig.ColorDepthWeight.Value,
-                IgnoreTransparentPixels = OmbarellaConfig.IgnoreTransparentPixels.Value
+                IgnoreTransparentPixels = OmbarellaConfig.IgnoreTransparentPixels.Value,
+                CenterFocus = OmbarellaConfig.CenterFocus.Value,
+                CenterSigma = OmbarellaConfig.CenterWidth.Value
             };
         }
 

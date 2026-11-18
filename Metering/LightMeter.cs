@@ -265,6 +265,7 @@ namespace ombarella
             return OmbarellaConfig.UseFixedOrbitAngle.Value ? OmbarellaConfig.FixedOrbitAngle.Value : UnityEngine.Random.Range(0f, 360f);
         }
 
+        const float ClipCheckRadius = 0.05f; // near clip 0.01 + margin
         static int _occlusionMask;
         bool HasLineOfSight(Vector3 focus)
         {
@@ -278,6 +279,8 @@ namespace ombarella
                 int playerLayer = LayerMask.NameToLayer("Player");
                 _occlusionMask = m != 0 ? m : Physics.DefaultRaycastLayers & ~(playerLayer < 0 ? 0 : 1 << playerLayer);
             }
+            // Camera clipped into a wall: ray starts inside the collider and never hits, so test overlap too. Skip = score holds last value.
+            if (Physics.CheckSphere(from, ClipCheckRadius, _occlusionMask, QueryTriggerInteraction.Ignore)) return false;
             return !Physics.Raycast(from, dir / dist, dist, _occlusionMask, QueryTriggerInteraction.Ignore);
         }
 

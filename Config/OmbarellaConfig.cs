@@ -7,7 +7,7 @@ namespace ombarella
     public static class OmbarellaConfig
     {
         public static ConfigEntry<bool> MasterSwitch, MeterViz, OnDemandSampling;
-        public static ConfigEntry<float> MeterAttenuationCoef, SamplesPerSec, MeterAverageSamples, AimNerf;
+        public static ConfigEntry<float> MeterAttenuationCoef, SamplesPerSec, MeterAverageSamples, AimNerf, AimRampStart;
         public static ConfigEntry<float> CameraFOV, Exposure, RenderTextureResolution, VisionCurveExponent, VisionRampNear, VisionRampFar;
         public static ConfigEntry<bool> UseAsyncGPUReadback, IgnoreTransparentPixels, ExcludeSky, UseEftAmbient;
         public static ConfigEntry<float> RedLumaMulti, GreenLumaMulti, BlueLumaMulti;
@@ -28,6 +28,7 @@ namespace ombarella
         public static volatile bool Enabled = true;
         public static float Strength = 1f;
         public static float AimNerfValue = 0.03f;
+        public static float AimRampStartValue = 1f;
 
         public static void Bind(ConfigFile c)
         {
@@ -47,6 +48,7 @@ namespace ombarella
             VisionCurveExponent = F(c, 0.5f, "b - Main Settings", "5-Darkness curve exponent", "Bot vision speed = meter ^ this. 1 = linear (meter 0.1 means 10x slower), 0.5 = about 3x slower at 0.1, closer to human vision. In Fika the host/headless value applies.", 0.1f, 1f);
             VisionRampNear = F(c, 5f, "b - Main Settings", "6-Darkness effect starts (m)", "Bots closer than this ignore the light meter. In Fika the host/headless value applies.", 0f, 100f);
             VisionRampFar = F(c, 30f, "b - Main Settings", "7-Darkness full effect (m)", "Bots this far or farther get the full light meter effect; fades in linearly from the start distance.", 1f, 200f);
+            AimRampStart = F(c, 1f, "b - Main Settings", "8-Aim handicap fade-out score", "Bot aim handicap is full at light score 0.1 or lower and fades out linearly up to this score; bots above it keep full accuracy. 0.5 = no handicap above score 0.5; 1 = fade across the whole range. Guess default. In Fika the host/headless value applies.", 0.11f, 1f);
             CameraFOV = F(c, 30f, "c - Advanced Settings", "CameraFOV", "Size of light camera FOV", 10f, 170f);
             UseEftAmbient = B(c, true, "c - Advanced Settings", "Use EFT sky ambient", "Attaches EFT's own ambient-light pass to the light camera. Without it only lamps light the frame and outdoor daylight reads near zero. Turn off if it causes rendering problems.");
             Exposure = F(c, 1.8f, "c - Advanced Settings", "Exposure (EV)", "Stops applied to the raw light-camera image before scoring, clipped at white like a camera (+2 = 4x). The raw render is dark. Raise if bright days score low, lower if dark interiors score high.", -4f, 8f);
@@ -94,6 +96,7 @@ namespace ombarella
             MasterSwitch.SettingChanged += (s, e) => Refresh();
             MeterAttenuationCoef.SettingChanged += (s, e) => Refresh();
             AimNerf.SettingChanged += (s, e) => Refresh();
+            AimRampStart.SettingChanged += (s, e) => Refresh();
             CurveEnabled.SettingChanged += (s, e) => Refresh();
             CurveLow.SettingChanged += (s, e) => Refresh();
             CurveHigh.SettingChanged += (s, e) => Refresh();
@@ -111,6 +114,7 @@ namespace ombarella
             Enabled = MasterSwitch.Value;
             Strength = MeterAttenuationCoef.Value;
             AimNerfValue = AimNerf.Value;
+            AimRampStartValue = AimRampStart.Value;
             CurveOn = CurveEnabled.Value;
             CurveLo = CurveLow.Value;
             CurveHi = CurveHigh.Value;

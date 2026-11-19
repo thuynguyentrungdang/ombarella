@@ -27,6 +27,21 @@ namespace ombarella.Core
             return (1f - finalMeter) * 100f * aimNerf;
         }
 
+        public const float AimRampFull = 0.1f; // score at or below this = full aim penalty
+
+        /// <summary>
+        /// Aim penalty with score ramp: full at score <= AimRampFull, fades linearly to 0 at rampStart, none above it.
+        /// rampStart <= AimRampFull = hard step at AimRampFull.
+        /// </summary>
+        public static float AimOffsetScale(float finalMeter, float aimNerf, float rampStart)
+        {
+            float ramp = rampStart <= AimRampFull
+                ? (finalMeter <= AimRampFull ? 1f : 0f)
+                : (rampStart - finalMeter) / (rampStart - AimRampFull);
+            ramp = ramp < 0f ? 0f : (ramp > 1f ? 1f : ramp);
+            return AimOffsetScale(finalMeter, aimNerf) * ramp;
+        }
+
         /// <summary>
         /// Vision-speed multiplier for a bot looking at a player. Power curve (human latency ~ luminance^-k, so 0.5 not linear),
         /// then strength blend, then NVG blend, then faded in by distance: no effect at or below nearM, full at farM and beyond.

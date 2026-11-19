@@ -183,6 +183,19 @@ public class CoreTests
     }
 
     [Fact]
+    public void Math_AimRamp()
+    {
+        float full = MeterMath.AimOffsetScale(0.1f, 0.03f);
+        Assert.Equal(full, MeterMath.AimOffsetScale(0.1f, 0.03f, 0.5f), 4);   // full at 0.1
+        Assert.Equal(full, MeterMath.AimOffsetScale(0.05f, 0.03f, 0.5f) / (0.95f / 0.9f), 3); // below 0.1 keeps dark scale, ramp 1
+        Assert.Equal(MeterMath.AimOffsetScale(0.3f, 0.03f) * 0.5f, MeterMath.AimOffsetScale(0.3f, 0.03f, 0.5f), 4); // halfway
+        Assert.Equal(0f, MeterMath.AimOffsetScale(0.5f, 0.03f, 0.5f), 4);     // at start = none
+        Assert.Equal(0f, MeterMath.AimOffsetScale(0.8f, 0.03f, 0.5f), 4);     // above start = full accuracy
+        Assert.Equal(0f, MeterMath.AimOffsetScale(0.3f, 0.03f, 0.1f), 4);     // step mode, above 0.1
+        Assert.True(MeterMath.AimOffsetScale(0.1f, 0.03f, 0.1f) > 0f);        // step mode, at 0.1
+    }
+
+    [Fact]
     public void Registry_IrFlag_RoundTripsAndClears()
     {
         var r = new VisibilityRegistry();

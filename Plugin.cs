@@ -424,7 +424,7 @@ namespace ombarella
                 "ignore clear {27}  exposure {28:+0.0;-0.0;0.0} EV",
                 _meter.LastScore, _meter.LastLuma, _meter.LastColorDepth,
                 _meter.Average, Mathf.RoundToInt(OmbarellaConfig.MeterAverageSamples.Value), raw, _meter.HasValue,
-                final, OmbarellaConfig.Strength, MeterMath.AimOffsetScale(final, OmbarellaConfig.AimNerfValue),
+                final, OmbarellaConfig.Strength, MeterMath.AimOffsetScale(final, OmbarellaConfig.AimNerfValue, OmbarellaConfig.AimRampStartValue),
                 _role, _inRaid, _canRender,
                 HasDemand(now), now - _lastDemandTime, _seedSample, OmbarellaConfig.SamplesPerSec.Value,
                 _meter.LastMs, avgMs, _meter.StatMaxMs, _meter.StatSamples,

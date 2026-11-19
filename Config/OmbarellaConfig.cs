@@ -1,4 +1,5 @@
 using BepInEx.Configuration;
+using ombarella.Core;
 using System;
 
 namespace ombarella
@@ -18,6 +19,7 @@ namespace ombarella
         public static float CurveLo = 0.3f, CurveHi = 1f, CurveK = 2f;
         public static ConfigEntry<float> CamHorizontalOffset, CameraFocusHeightOffset, OrbitCameraRadius, OrbitCameraHeightOffset;
         public static ConfigEntry<HudAnchor> MeterAnchor;
+        public static ConfigEntry<LightMatchMode> LightMatch;
         public static ConfigEntry<float> MeterOffsetX, MeterOffsetY, MeterFontSize;
         public static ConfigEntry<bool> VerboseDebug;
         public static ConfigEntry<bool> ForceTargetPlayerRenderers, UseOrbitCameraSampling, RejectOccludedSamples, ExcludeOpticRenderers;
@@ -51,6 +53,7 @@ namespace ombarella
             AimRampStart = F(c, 1f, "b - Main Settings", "8-Aim handicap fade-out score", "Bot aim handicap is full at light score 0.1 or lower and fades out linearly up to this score; bots above it keep full accuracy. 0.5 = no handicap above score 0.5; 1 = fade across the whole range. Guess default. In Fika the host/headless value applies.", 0.11f, 1f);
             CameraFOV = F(c, 30f, "c - Advanced Settings", "CameraFOV", "Size of light camera FOV", 10f, 170f);
             UseEftAmbient = B(c, true, "c - Advanced Settings", "Use EFT sky ambient", "Attaches EFT's own ambient-light pass to the light camera. Without it only lamps light the frame and outdoor daylight reads near zero. Turn off if it causes rendering problems.");
+            LightMatch = c.Bind("c - Advanced Settings", "Light match", LightMatchMode.Off, "Off = meter camera sees EFT's flat ambient (as before). Attach = also runs TraceSix's indirect-light pass on the meter camera, so the reading follows the TraceSix picture (darker indoors/in shade). Needs the TraceSix mod; falls back to Off if missing. Applies live. Re-tune Exposure after switching.");
             Exposure = F(c, 1.8f, "c - Advanced Settings", "Exposure (EV)", "Stops applied to the raw light-camera image before scoring, clipped at white like a camera (+2 = 4x). The raw render is dark. Raise if bright days score low, lower if dark interiors score high.", -4f, 8f);
             RenderTextureResolution = F(c, 64f, "c - Advanced Settings", "Render texture resolution", "Resolution of the light camera render texture. Applied before raid start and rounded to the nearest multiple of 8.", 16f, 512f);
             UseAsyncGPUReadback = B(c, true, "c - Advanced Settings", "Use async GPU readback", "Avoids blocking the main thread while reading the light camera texture. Disable to use a blocking readback.");

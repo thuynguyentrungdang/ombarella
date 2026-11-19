@@ -26,7 +26,20 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="*.cs;Core\**\*.cs;Config\**\*.cs;Metering\**\*.cs;Patches\**\*.cs;Hud\**\*.cs;Properties\**\*.cs" Exclude="bin\**;obj\**" />
+    <Compile Include="*.cs;Core\**\*.cs;Config\**\*.cs;Metering\**\*.cs;Patches\**\*.cs;Hud\**\*.cs;Interop\**\*.cs;Properties\**\*.cs" Exclude="bin\**;obj\**" />
+  </ItemGroup>
+
+  <!-- Optional typed link to TraceSix (Light match = Attach): the sibling repo's Release build, or -p:TraceSixDll=... .
+       An installed TraceSix is NOT used (may predate TraceSixApi). Absent = inert stub, Ombarella builds and runs the same.
+       Never copied next to our dll (Private=false). -->
+  <PropertyGroup>
+    <TraceSixDll Condition="'$(TraceSixDll)' == ''">$(MSBuildThisFileDirectory)..\TraceSix\bin\Release\netstandard2.1\TraceSix.dll</TraceSixDll>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TraceSixDll)' != '' and Exists('$(TraceSixDll)')">
+    <DefineConstants>$(DefineConstants);TRACESIX_API</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(TraceSixDll)' != '' and Exists('$(TraceSixDll)')">
+    <Reference Include="TraceSix"><HintPath>$(TraceSixDll)</HintPath><Private>false</Private></Reference>
   </ItemGroup>
 
   <Target Name="ValidateGameDir" BeforeTargets="ResolveReferences">

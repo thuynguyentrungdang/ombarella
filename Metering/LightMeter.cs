@@ -101,7 +101,12 @@ namespace ombarella
 
         public void ResetStats() { StatSamples = 0; StatTotalMs = 0; StatMaxMs = 0; StatPosMs = 0; StatSetMs = 0; StatRenderMs = 0; StatMaxRenderMs = 0; StatColdMs = 0; StatColdN = 0; StatSlow = 0; StatAmbientMs = 0; StatReqMs = 0; StatAcceptMs = 0; StatAccepts = 0; _renderers.ResetStats(); _sky.ResetStats(); }
 
-        public void ReleaseTarget() { _renderers.Clear(); }
+        public void ReleaseTarget() { _renderers.Clear(); _lightMatch.Release(); }
+
+        readonly LightMatch _lightMatch = new LightMatch();
+
+        /// <summary>Raid-start log line: requested light-match mode and what it resolved to.</summary>
+        public string DescribeLightMatch() { return _lightMatch.Describe(); }
 
         /// <summary>(Re)create RT/camera when config size changed. Cheap no-op otherwise.</summary>
         public void EnsureResources()
@@ -208,6 +213,7 @@ namespace ombarella
 
             double ta = _watch.Elapsed.TotalMilliseconds;
             RegisterEftAmbient();
+            _lightMatch.Sync(_cam);
             StatAmbientMs += _watch.Elapsed.TotalMilliseconds - ta;
             _renderers.Apply(OmbarellaConfig.ForceTargetPlayerRenderers.Value);
             if (OmbarellaConfig.ExcludeSky.Value) _sky.Hide();
@@ -612,6 +618,7 @@ namespace ombarella
         public void Dispose()
         {
             _disposed = true;
+            _lightMatch.Release();
             _renderers.Clear();
             ReleaseRt();
             if (_cam != null) UnityEngine.Object.Destroy(_cam);

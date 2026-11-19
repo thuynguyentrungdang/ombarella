@@ -12,6 +12,7 @@ using UnityEngine.Rendering;
 namespace ombarella
 {
     [BepInPlugin(ModGuid, ModName, ModVersion.Value)]
+    [BepInDependency(TraceSixBridge.PluginGuid, BepInDependency.DependencyFlags.SoftDependency)]
     public class Plugin : BaseUnityPlugin
     {
         public const string ModGuid = "Ombarella";
@@ -211,7 +212,8 @@ namespace ombarella
             Meters.LocalRaw = 1f;
             OmbarellaApi.FireRaidReset();
             if (_role != RaidRole.Headless && _canRender) _meter.EnsureResources();
-            Log.LogInfo("raid start, role " + _role + (_canRender ? "" : ", no GPU: sampling off"));
+            Log.LogInfo("raid start, role " + _role + (_canRender ? "" : ", no GPU: sampling off") +
+                        (_role != RaidRole.Headless && _canRender ? ", " + _meter.DescribeLightMatch() : ""));
         }
 
         void EndRaid()

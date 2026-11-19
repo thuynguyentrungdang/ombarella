@@ -2,6 +2,7 @@
 using BepInEx.Logging;
 using Comfort.Common;
 using EFT;
+using EFT.UI.Screens;
 using ombarella.Core;
 using System;
 using System.Collections;
@@ -242,6 +243,9 @@ namespace ombarella
         void UpdateHud()
         {
             bool want = OmbarellaConfig.MeterViz.Value || OmbarellaConfig.ShowRenderTexturePreview.Value || OmbarellaConfig.VerboseDebug.Value;
+            // Raid HUD only while the battle UI is the current screen: hidden under inventory/loot/menus, back when it closes.
+            // Same check vanilla uses to gate ShowInventoryScreen. Polled here (throttled tick), not per OnGUI, enum compare boxes.
+            if (want) want = EftScreenManager.Instance.CheckCurrentScreen(EEftScreenType.BattleUI);
             if (_hud.enabled != want) _hud.enabled = want;
         }
 

@@ -32,6 +32,7 @@ See [docs/PERF_AUDIT.md](docs/PERF_AUDIT.md). New option *On-demand sampling*: l
 
 ## Cutting a release
 1. Bump `ModVersion` in `Directory.Build.props`, add a `## [vX.Y.Z]` entry to `CHANGELOG.md`, commit.
-2. `scripts/Build-Release.ps1` locally (needs the game install) -> `bin/Release/Ombarella.zip`, `bin/Release/Ombarella.Fika.zip`.
-3. `git tag vX.Y.Z && git push origin vX.Y.Z` -> CI runs tests, checks tag vs version, creates a DRAFT release from the changelog.
-4. Attach both zips to the draft, publish.
+2. `scripts/Build-Release.ps1` locally (needs the game install) -> `bin/Release/Ombarella.zip`, `Ombarella.Fika.zip`, `SHA256SUMS.txt`, also copied to `D:\Staging Area\Ombarella`.
+3. `scripts/Build-Release.ps1 -Publish` (clean tree, `gh` CLI): tags `vX.Y.Z`, pushes the tag -> CI runs tests, checks tag vs version, creates a DRAFT release from the changelog; script then attaches zips + checksums.
+   Manual alternative: `git tag vX.Y.Z && git push origin vX.Y.Z`, attach files to the draft.
+4. Review the draft on GitHub, publish. (`ci.yml` runs the tests on every push/PR.)

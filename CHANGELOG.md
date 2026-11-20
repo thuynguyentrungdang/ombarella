@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+- Aim handicap fade-out score slider: penalty fades from full at score 0.1 to none at the chosen score.
+- Light match option (Off/Attach): attaches TraceSix indirect-light pass to the meter camera. Default Off, scoring unchanged.
+- Meter HUD shows when the raid starts, hides while inventory/menu screens cover the battle UI, returns on close.
+- Meter skips a sample when the orbit camera is inside geometry (score holds last value).
+- Release tooling: CI test workflow, `Build-Release.ps1 -Publish`, SHA256SUMS.txt.
+
 ## [v0.6.0]
 
 - Light meter reworked: orbit camera renders a raw HDR frame, exposure (EV) applied before scoring, preview shows the post-exposure frame.

@@ -46,14 +46,13 @@ try {
     $ErrorActionPreference = 'Continue'
     git push origin $tag 2>&1 | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "git push origin $tag failed" }
-    $ErrorActionPreference = 'Stop'
-    if ($LASTEXITCODE) { throw 'tag push failed' }
     $found = $false
     for ($i = 0; $i -lt 24 -and -not $found; $i++) {
         Start-Sleep 10
-        gh release view $tag --json isDraft *> $null
+        gh release view $tag --json isDraft 2>&1 | Out-Null
         $found = ($LASTEXITCODE -eq 0)
     }
+    $ErrorActionPreference = 'Stop'
     if (-not $found) { throw "draft release $tag not created by CI after 4 min: check the Actions tab, then: gh release upload $tag bin\Release\*.zip --clobber" }
     gh release upload $tag @zips $sums --clobber
     if ($LASTEXITCODE) { throw 'upload failed' }

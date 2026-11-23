@@ -42,7 +42,11 @@ try {
         return
     }
     git tag $tag
-    git push origin $tag
+    # PS 5.1 turns git's stderr progress into a terminating error under 'Stop'; judge by exit code instead
+    $ErrorActionPreference = 'Continue'
+    git push origin $tag 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "git push origin $tag failed" }
+    $ErrorActionPreference = 'Stop'
     if ($LASTEXITCODE) { throw 'tag push failed' }
     $found = $false
     for ($i = 0; $i -lt 24 -and -not $found; $i++) {

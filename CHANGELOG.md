@@ -1,6 +1,6 @@
 # Changelog
 
-## [v0.7.0]
+## [v3.0.0]
 
 - Aim handicap fade-out score slider: penalty fades from full at score 0.1 to none at the chosen score.
 - Light match option (Off/Attach): attaches TraceSix indirect-light pass to the meter camera. Default Off, scoring unchanged.

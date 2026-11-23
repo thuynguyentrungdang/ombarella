@@ -1,7 +1,7 @@
 <Project>
   <!-- SINGLE source of mod version; Plugin reads generated ModVersion.Value -->
   <PropertyGroup>
-    <ModVersion>0.6.0</ModVersion>
+    <ModVersion>0.7.0</ModVersion>
     <Version>$(ModVersion)</Version>
     <RepoRoot>$(MSBuildThisFileDirectory)</RepoRoot>
   </PropertyGroup>
